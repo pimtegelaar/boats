@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Boats - Titanic Navigator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+            overscroll-behavior: none;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #000;
+        }
+
+        canvas {
+            touch-action: none;
+        }
+
+        #canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        #info h2 {
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        #info p {
+            margin: 5px 0;
+        }
+
+        #build-version {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            color: #d8f2ff;
+            background: rgba(0, 0, 0, 0.65);
+            border: 1px solid rgba(216, 242, 255, 0.3);
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-family: monospace;
+            z-index: 120;
+        }
+
+        .key {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: monospace;
+            font-weight: bold;
+        }
+
+        /* ── Joystick ── */
+        #joystick-container {
+            display: none; /* shown by JS on first touch */
+            position: fixed;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            z-index: 100;
+            touch-action: none;
+            user-select: none;
+        }
+        #joystick-base {
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 16px rgba(0,0,0,0.4);
+        }
+        #joystick-knob {
+            position: absolute;
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.6);
+            border: 2px solid rgba(255,255,255,0.9);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            transition: transform 0.05s;
+        }
+
+        /* Hide keyboard hints on touch-primary devices */
+        @media (hover: none) and (pointer: coarse) {
+            #keyboard-controls { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div id="build-version">Build v2026.04.18-touch-fix-4</div>
+
+    <div id="info">
+        <h2>🚢 Titanic Navigator</h2>
+        <p>Controls:</p>
+        <div id="keyboard-controls">
+            <p><span class="key">W</span> - Move Forward</p>
+            <p><span class="key">A</span> - Strafe Left</p>
+            <p><span class="key">S</span> - Move Backward</p>
+            <p><span class="key">D</span> - Strafe Right</p>
+            <p><span class="key">SPACE</span> - Move Up</p>
+            <p><span class="key">CTRL</span> - Move Down</p>
+        </div>
+        <p><span class="key">LMB + Drag</span> - Look Around</p>
+        <p><span class="key">Wheel</span> - Zoom In/Out</p>
+        <p><span class="key">RMB + Drag</span> - Pan Camera</p>
+        <p id="touch-hint" style="display:none">👆 Drag circle to steer | Drag screen to look | Pinch to zoom</p>
+        <hr style="margin: 10px 0; opacity: 0.3;">
+        <p id="position">Position: (0, 0, 0)</p>
+    </div>
+
+    <!-- Virtual joystick (shown on touch devices) -->
+    <div id="joystick-container">
+        <div id="joystick-base"></div>
+        <div id="joystick-knob"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="Boats.js"></script>
+</body>
+</html>

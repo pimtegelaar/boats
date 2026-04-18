@@ -21,6 +21,32 @@ renderer.shadowMap.enabled = true;
 renderer.localClippingEnabled = true;
 document.body.appendChild(renderer.domElement);
 
+const BUILD_VERSION = 'v2026.04.18-touch-fix-4';
+const buildVersionElement = document.getElementById('build-version');
+if (buildVersionElement) {
+    buildVersionElement.textContent = `Build ${BUILD_VERSION}`;
+}
+
+const ENABLE_TOUCH_DEBUG = true;
+let touchDebugElement = null;
+if (ENABLE_TOUCH_DEBUG) {
+    touchDebugElement = document.createElement('div');
+    touchDebugElement.style.position = 'fixed';
+    touchDebugElement.style.right = '16px';
+    touchDebugElement.style.bottom = '16px';
+    touchDebugElement.style.zIndex = '130';
+    touchDebugElement.style.padding = '8px 10px';
+    touchDebugElement.style.background = 'rgba(0, 0, 0, 0.65)';
+    touchDebugElement.style.border = '1px solid rgba(125, 220, 255, 0.55)';
+    touchDebugElement.style.borderRadius = '6px';
+    touchDebugElement.style.color = '#bfefff';
+    touchDebugElement.style.fontFamily = 'monospace';
+    touchDebugElement.style.fontSize = '11px';
+    touchDebugElement.style.whiteSpace = 'pre';
+    touchDebugElement.style.pointerEvents = 'none';
+    document.body.appendChild(touchDebugElement);
+}
+
 // Lighting
 const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
 scene.add(ambientLight);
@@ -1304,12 +1330,74 @@ let cameraDistance = 100;
 const minCameraDistance = 30;
 const maxCameraDistance = 300;
 const zoomSensitivity = 0.08;
+const touchLookSensitivity = 0.005;
+const pinchZoomSensitivity = 0.22;
 const panSensitivity = 0.25;
 const panOffset = new THREE.Vector3(0, 0, 0);
 const smoothedFocusPoint = new THREE.Vector3(0, 10, 0);
 const smoothedLookAtPoint = new THREE.Vector3(0, 10, 0);
 let cameraSmoothingInitialized = false;
 let lastCameraDamagePhase = 'sailing';
+
+let activeLookTouchId = null;
+let lastLookTouchX = 0;
+let lastLookTouchY = 0;
+let pinchActive = false;
+let lastPinchDistance = 0;
+const joystickTouchIds = new Set();
+let debugTouchCount = 0;
+let debugCameraTouchCount = 0;
+
+function clampCameraDistance() {
+    cameraDistance = Math.max(minCameraDistance, Math.min(maxCameraDistance, cameraDistance));
+}
+
+function clampCameraPitch() {
+    cameraRotation.pitch = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, cameraRotation.pitch));
+}
+
+function getTouchById(touches, id) {
+    for (let i = 0; i < touches.length; i++) {
+        if (touches[i].identifier === id) {
+            return touches[i];
+        }
+    }
+    return null;
+}
+
+function getTouchDistance(t0, t1) {
+    const dx = t1.clientX - t0.clientX;
+    const dy = t1.clientY - t0.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getCameraTouches(touchList) {
+    const touches = [];
+    for (let i = 0; i < touchList.length; i++) {
+        const touch = touchList[i];
+        if (!joystickTouchIds.has(touch.identifier)) {
+            touches.push(touch);
+        }
+    }
+    return touches;
+}
+
+function updateTouchDebug(extraMessage = '') {
+    if (!touchDebugElement) {
+        return;
+    }
+
+    const pinchText = lastPinchDistance > 0 ? lastPinchDistance.toFixed(1) : '-';
+    touchDebugElement.textContent =
+        `touch dbg\n` +
+        `build: ${BUILD_VERSION}\n` +
+        `all touches: ${debugTouchCount}\n` +
+        `cam touches: ${debugCameraTouchCount}\n` +
+        `pinch: ${pinchActive ? 'on' : 'off'} (${pinchText})\n` +
+        `look id: ${activeLookTouchId === null ? '-' : activeLookTouchId}\n` +
+        `cam dist: ${cameraDistance.toFixed(1)}\n` +
+        `${extraMessage}`;
+}
 
 // Keep browser context menu from opening while using right-drag pan on canvas.
 renderer.domElement.addEventListener('contextmenu', (e) => {
@@ -1321,7 +1409,138 @@ renderer.domElement.addEventListener('wheel', (e) => {
 
     // Positive deltaY zooms out, negative deltaY zooms in.
     cameraDistance += e.deltaY * zoomSensitivity;
-    cameraDistance = Math.max(minCameraDistance, Math.min(maxCameraDistance, cameraDistance));
+    clampCameraDistance();
+}, { passive: false });
+
+// Disable browser gestures on the canvas so touch controls stay responsive.
+renderer.domElement.style.touchAction = 'none';
+document.body.style.touchAction = 'none';
+
+// iOS Safari can still emit legacy gesture events; suppress them explicitly.
+for (const eventName of ['gesturestart', 'gesturechange', 'gestureend']) {
+    window.addEventListener(eventName, (e) => {
+        e.preventDefault();
+    }, { passive: false });
+}
+
+function syncTouchCameraState(activeTouches) {
+    if (activeTouches.length >= 2) {
+        pinchActive = true;
+        activeLookTouchId = null;
+        lastPinchDistance = getTouchDistance(activeTouches[0], activeTouches[1]);
+        return;
+    }
+
+    pinchActive = false;
+    lastPinchDistance = 0;
+
+    if (activeTouches.length === 1) {
+        const touch = activeTouches[0];
+        activeLookTouchId = touch.identifier;
+        lastLookTouchX = touch.clientX;
+        lastLookTouchY = touch.clientY;
+    } else {
+        activeLookTouchId = null;
+    }
+}
+
+window.addEventListener('touchstart', (e) => {
+    const cameraTouches = getCameraTouches(e.touches);
+    debugTouchCount = e.touches.length;
+    debugCameraTouchCount = cameraTouches.length;
+    if (cameraTouches.length === 0) {
+        updateTouchDebug('evt: start (joystick only)');
+        return;
+    }
+
+    syncTouchCameraState(cameraTouches);
+    updateTouchDebug('evt: start');
+    e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchmove', (e) => {
+    const cameraTouches = getCameraTouches(e.touches);
+    debugTouchCount = e.touches.length;
+    debugCameraTouchCount = cameraTouches.length;
+    if (cameraTouches.length === 0) {
+        updateTouchDebug('evt: move (joystick only)');
+        return;
+    }
+
+    if (cameraTouches.length >= 2) {
+        const distance = getTouchDistance(cameraTouches[0], cameraTouches[1]);
+        if (!pinchActive || lastPinchDistance === 0) {
+            pinchActive = true;
+            lastPinchDistance = distance;
+            activeLookTouchId = null;
+            updateTouchDebug('evt: move (pinch begin)');
+            e.preventDefault();
+            return;
+        }
+
+        const deltaDistance = distance - lastPinchDistance;
+
+        // Fingers moving apart should zoom in (closer camera distance).
+        cameraDistance -= deltaDistance * pinchZoomSensitivity;
+        clampCameraDistance();
+        lastPinchDistance = distance;
+        updateTouchDebug('evt: move (pinch)');
+        e.preventDefault();
+        return;
+    }
+
+    if (pinchActive) {
+        // If pinch drops to one finger, rebind look tracking cleanly.
+        syncTouchCameraState(cameraTouches);
+        updateTouchDebug('evt: move (pinch->look)');
+        e.preventDefault();
+        return;
+    }
+
+    if (activeLookTouchId === null) {
+        syncTouchCameraState(cameraTouches);
+    }
+
+    const touch = getTouchById(cameraTouches, activeLookTouchId);
+    if (!touch) {
+        syncTouchCameraState(cameraTouches);
+        return;
+    }
+
+    const dx = touch.clientX - lastLookTouchX;
+    const dy = touch.clientY - lastLookTouchY;
+    lastLookTouchX = touch.clientX;
+    lastLookTouchY = touch.clientY;
+
+    cameraRotation.yaw += dx * touchLookSensitivity;
+    cameraRotation.pitch -= dy * touchLookSensitivity;
+    clampCameraPitch();
+    updateTouchDebug('evt: move (look)');
+    e.preventDefault();
+}, { passive: false });
+
+window.addEventListener('touchend', (e) => {
+    const cameraTouches = getCameraTouches(e.touches);
+    debugTouchCount = e.touches.length;
+    debugCameraTouchCount = cameraTouches.length;
+    syncTouchCameraState(cameraTouches);
+    updateTouchDebug('evt: end');
+
+    if (cameraTouches.length > 0) {
+        e.preventDefault();
+    }
+}, { passive: false });
+
+window.addEventListener('touchcancel', (e) => {
+    const cameraTouches = getCameraTouches(e.touches);
+    debugTouchCount = e.touches.length;
+    debugCameraTouchCount = cameraTouches.length;
+    syncTouchCameraState(cameraTouches);
+    updateTouchDebug('evt: cancel');
+
+    if (cameraTouches.length > 0) {
+        e.preventDefault();
+    }
 }, { passive: false });
 
 document.addEventListener('mousedown', (e) => {
@@ -1356,7 +1575,7 @@ document.addEventListener('mousemove', (e) => {
         cameraRotation.pitch -= e.movementY * 0.005;
 
         // Clamp vertical rotation
-        cameraRotation.pitch = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, cameraRotation.pitch));
+        clampCameraPitch();
     }
 
     if (rightMouseDown) {
@@ -1514,6 +1733,7 @@ function animate() {
     }
 
     renderer.render(scene, camera);
+    updateTouchDebug();
 }
 
 animate();
@@ -1524,3 +1744,121 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+// ── Virtual Joystick (mobile / touch) ────────────────────────────────────────
+(function setupJoystick() {
+    const container = document.getElementById('joystick-container');
+    const knob      = document.getElementById('joystick-knob');
+    const touchHint = document.getElementById('touch-hint');
+
+    if (!container || !knob) return;
+
+    const BASE_RADIUS  = 60;  // half the container width
+    const KNOB_RADIUS  = 24;  // half the knob width
+    const MAX_TRAVEL   = BASE_RADIUS - KNOB_RADIUS; // px knob centre can travel from base centre
+    const DEAD_ZONE    = 0.15; // fraction of MAX_TRAVEL before input registers
+
+    let activeTouchId = null;
+    let baseX = 0, baseY = 0; // page-coords of container centre at touch-start
+
+    // Joystick axis values in [-1, 1]
+    const joystickAxis = { x: 0, y: 0 };
+
+    function getContainerCentre() {
+        const r = container.getBoundingClientRect();
+        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    }
+
+    function applyAxis(ax, ay) {
+        joystickAxis.x = ax;
+        joystickAxis.y = ay;
+
+        // Map to WASD keys
+        const threshold = DEAD_ZONE;
+        keys['w'] = ay < -threshold;
+        keys['s'] = ay >  threshold;
+        keys['a'] = ax < -threshold;
+        keys['d'] = ax >  threshold;
+    }
+
+    function resetJoystick() {
+        if (activeTouchId !== null) {
+            joystickTouchIds.delete(activeTouchId);
+        }
+        activeTouchId = null;
+        applyAxis(0, 0);
+        knob.style.transform = 'translate(-50%, -50%)';
+    }
+
+    function onTouchStart(e) {
+        // Reveal the joystick on first touch (works for any touch on page too)
+        if (container.style.display === 'none' || container.style.display === '') {
+            container.style.display = 'block';
+            if (touchHint) touchHint.style.display = 'block';
+        }
+
+        if (activeTouchId !== null) return; // already tracking a touch
+
+        // Find a touch that started inside the container
+        for (const t of e.changedTouches) {
+            const c = getContainerCentre();
+            const dx = t.clientX - c.x;
+            const dy = t.clientY - c.y;
+            if (Math.sqrt(dx * dx + dy * dy) <= BASE_RADIUS * 1.4) { // generous hit area
+                activeTouchId = t.identifier;
+                joystickTouchIds.add(activeTouchId);
+                baseX = c.x;
+                baseY = c.y;
+                e.preventDefault();
+                break;
+            }
+        }
+    }
+
+    function onTouchMove(e) {
+        if (activeTouchId === null) return;
+        for (const t of e.changedTouches) {
+            if (t.identifier !== activeTouchId) continue;
+
+            let dx = t.clientX - baseX;
+            let dy = t.clientY - baseY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+
+            // Clamp knob travel
+            if (dist > MAX_TRAVEL) {
+                dx = (dx / dist) * MAX_TRAVEL;
+                dy = (dy / dist) * MAX_TRAVEL;
+            }
+
+            // Move the knob visually
+            knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+            // Normalise to [-1, 1]
+            applyAxis(dx / MAX_TRAVEL, dy / MAX_TRAVEL);
+            e.preventDefault();
+            break;
+        }
+    }
+
+    function onTouchEnd(e) {
+        for (const t of e.changedTouches) {
+            joystickTouchIds.delete(t.identifier);
+            if (t.identifier === activeTouchId) {
+                resetJoystick();
+                break;
+            }
+        }
+    }
+
+    container.addEventListener('touchstart',  onTouchStart, { passive: false });
+    window.addEventListener('touchmove',   onTouchMove,  { passive: false });
+    window.addEventListener('touchend',    onTouchEnd,   { passive: false });
+    window.addEventListener('touchcancel', onTouchEnd,   { passive: false });
+
+    // On pointer-coarse (touch) devices show the joystick immediately
+    if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
+        container.style.display = 'block';
+        if (touchHint) touchHint.style.display = 'block';
+    }
+})();
+
