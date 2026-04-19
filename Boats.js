@@ -1385,7 +1385,7 @@ let mouseDown = false;
 let rightMouseDown = false;
 
 // Camera rig controls
-let cameraDistance = 100;
+let cameraDistance = 240;
 const minCameraDistance = 30;
 const maxCameraDistance = 300;
 const zoomSensitivity = 0.08;
