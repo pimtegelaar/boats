@@ -68,6 +68,120 @@
         return 5 + bowRise * Math.pow(t, 2.5) + sternRise * Math.pow(1 - t, 2.1);
     }
 
+    function getHullDraftScaleAtT(t) {
+        return 0.95 + 0.05 * Math.sin(Math.PI * t);
+    }
+
+    function getHullSideSurfacePointAtT(t, keelCurve, sideSign, options) {
+        const {
+            length = 224,
+            beam = 12.6,
+            draft = 11.0,
+            bowSharpness = 1.85,
+            sternSharpness = 3.1,
+            sternWidth = 0.32,
+            bowRise = 2.2,
+            sternRise = 0.9,
+            bowStart = 0.76,
+            sternStart = 0.20,
+            sternRound = false,
+            sternRoundExponent = 1.0,
+            sideOutset = 0
+        } = options || {};
+
+        const z = (t - 0.5) * length;
+        const bowT = THREE.MathUtils.clamp((t - bowStart) / (1 - bowStart), 0, 1);
+        const sternT = THREE.MathUtils.clamp((sternStart - t) / sternStart, 0, 1);
+        const bowFactor = 1 - Math.pow(bowT, bowSharpness);
+
+        let sternFactor = sternWidth + (1 - sternWidth) * (1 - Math.pow(sternT, sternSharpness));
+        if (sternRound && t < sternStart) {
+            const sternProgress = t / Math.max(sternStart, 0.0001);
+            sternFactor = getCircularSternCurve(sternProgress, sternRoundExponent);
+        }
+
+        const midFullness = 1 - 0.05 * Math.pow((t - 0.5) / 0.5, 4);
+        const halfBeam = Math.max(0, beam * midFullness * bowFactor * sternFactor) + sideOutset;
+        const clampedKeelCurve = THREE.MathUtils.clamp(keelCurve, 0, 1);
+        const sinAngle = Math.pow(clampedKeelCurve, 1 / 1.18);
+        const cosMagnitude = Math.sqrt(Math.max(0, 1 - sinAngle * sinAngle));
+        const side = sideSign * Math.pow(cosMagnitude, 0.72);
+        const tumblehome = 0.94 + 0.08 * clampedKeelCurve;
+        const sheer = getHullSheerAtT(t, { bowRise, sternRise });
+        const y = sheer - draft * getHullDraftScaleAtT(t) * clampedKeelCurve;
+
+        return new THREE.Vector3(halfBeam * side * tumblehome, y, z);
+    }
+
+    function createHullSideBandGeometry(options) {
+        const {
+            stations = 72,
+            draft = 11.0,
+            lowerYAtT = null,
+            topYAtT = null
+        } = options || {};
+
+        const vertices = [];
+        const uvs = [];
+        const indices = [];
+        const ringSize = 4;
+
+        for (let s = 0; s <= stations; s++) {
+            const t = s / stations;
+            const sheer = getHullSheerAtT(t, options);
+            const effectiveDraft = draft * getHullDraftScaleAtT(t);
+            const topY = typeof topYAtT === 'function'
+                ? Math.max(sheer, topYAtT(t))
+                : sheer;
+            const lowerY = typeof lowerYAtT === 'function'
+                ? THREE.MathUtils.clamp(lowerYAtT(t), sheer - effectiveDraft, sheer)
+                : sheer;
+            const lowerKeelCurve = effectiveDraft > 0.0001
+                ? THREE.MathUtils.clamp((sheer - lowerY) / effectiveDraft, 0, 1)
+                : 0;
+
+            const starboardTop = getHullSideSurfacePointAtT(t, 0, 1, options);
+            const starboardBottom = getHullSideSurfacePointAtT(t, lowerKeelCurve, 1, options);
+            const portTop = getHullSideSurfacePointAtT(t, 0, -1, options);
+            const portBottom = getHullSideSurfacePointAtT(t, lowerKeelCurve, -1, options);
+
+            starboardTop.y = topY;
+            portTop.y = topY;
+
+            vertices.push(
+                starboardTop.x, starboardTop.y, starboardTop.z,
+                starboardBottom.x, starboardBottom.y, starboardBottom.z,
+                portTop.x, portTop.y, portTop.z,
+                portBottom.x, portBottom.y, portBottom.z
+            );
+
+            uvs.push(
+                0, t,
+                1, t,
+                0, t,
+                1, t
+            );
+        }
+
+        for (let s = 0; s < stations; s++) {
+            const i = s * ringSize;
+            const n = (s + 1) * ringSize;
+
+            indices.push(i, n, i + 1);
+            indices.push(n, n + 1, i + 1);
+
+            indices.push(i + 2, i + 3, n + 2);
+            indices.push(n + 2, i + 3, n + 3);
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        return geometry;
+    }
+
     function createHullGeometry(options) {
         const {
             length = 224,
@@ -105,7 +219,7 @@
             }
             const midFullness = 1 - 0.05 * Math.pow((t - 0.5) / 0.5, 4);
             const halfBeam = Math.max(0, beam * midFullness * bowFactor * sternFactor);
-            const draftScale = 0.95 + 0.05 * Math.sin(Math.PI * t);
+            const draftScale = getHullDraftScaleAtT(t);
             const sheer = getHullSheerAtT(t, { bowRise, sternRise });
 
             for (let a = 0; a <= sectionSegments; a++) {
@@ -353,6 +467,12 @@
             clipShadows: true
         });
         const whitePaintMaterial = new THREE.MeshStandardMaterial({ color: 0xf1efe9, metalness: 0.15, roughness: 0.8 });
+        const upperHullWhiteBandMaterial = whitePaintMaterial.clone();
+        upperHullWhiteBandMaterial.polygonOffset = true;
+        upperHullWhiteBandMaterial.polygonOffsetFactor = -1;
+        upperHullWhiteBandMaterial.polygonOffsetUnits = -1;
+        const upperHullBulwarkMaterial = whitePaintMaterial.clone();
+        upperHullBulwarkMaterial.side = THREE.DoubleSide;
         const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x9f8660, metalness: 0.1, roughness: 0.85 });
         const windowMaterial = new THREE.MeshStandardMaterial({
             color: 0x111722,
@@ -370,6 +490,7 @@
             bowRise: 2.8,
             sternRise: 1.3
         };
+        const upperHullWhiteBandHeightRatio = 0.2;
         const hullGeometry = createHullGeometry(hullGeometryOptions);
 
         const hull = markBreakMode(new THREE.Mesh(hullGeometry, upperHullMaterial), 'split');
@@ -392,6 +513,20 @@
         lowerHull.receiveShadow = true;
         group.add(lowerHull);
 
+        const upperHullWhiteBand = markBreakMode(new THREE.Mesh(createHullSideBandGeometry({
+            ...hullGeometryOptions,
+            stations: 72,
+            sideOutset: 0.05,
+            lowerYAtT(t) {
+                const sheer = getHullSheerAtT(t, hullGeometryOptions);
+                return THREE.MathUtils.lerp(sheer, hullPaintSplitY, upperHullWhiteBandHeightRatio);
+            }
+        }), upperHullWhiteBandMaterial), 'split');
+        upperHullWhiteBand.position.y = hullPlacementY;
+        upperHullWhiteBand.castShadow = true;
+        upperHullWhiteBand.receiveShadow = true;
+        group.add(upperHullWhiteBand);
+
         const hullStripeThickness = 0.7;
         const hullStripe = markBreakMode(new THREE.Mesh(createTaperedSlabGeometry({
             length: 221,
@@ -412,6 +547,24 @@
         const mainDeckThickness = 1.4;
         // Slight inset avoids a visible floating seam while keeping the deck visually on the hull.
         const mainDeckSeatInset = 0.05;
+        const mainDeckTopOffset = (mainDeckThickness * 0.5) - mainDeckSeatInset;
+        const upperHullBulwarkRiseAboveDeck = 0.55;
+        const upperHullBulwark = markBreakMode(new THREE.Mesh(createHullSideBandGeometry({
+            ...hullGeometryOptions,
+            stations: 72,
+            sideOutset: 0.08,
+            lowerYAtT(t) {
+                return getHullSheerAtT(t, hullGeometryOptions);
+            },
+            topYAtT(t) {
+                return getHullSheerAtT(t, hullGeometryOptions) + mainDeckTopOffset + upperHullBulwarkRiseAboveDeck;
+            }
+        }), upperHullBulwarkMaterial), 'split');
+        upperHullBulwark.position.y = hullPlacementY;
+        upperHullBulwark.castShadow = true;
+        upperHullBulwark.receiveShadow = true;
+        group.add(upperHullBulwark);
+
         const superstructureDeckReferenceT = (3 / 224) + 0.5;
         const mainDeck = markBreakMode(new THREE.Mesh(createTaperedSlabGeometry({
             length: 224,
