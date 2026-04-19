@@ -38,19 +38,6 @@
             height: 100%;
         }
 
-        #info {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: #fff;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            line-height: 1.4;
-            z-index: 90;
-        }
-
         #top-right-controls {
             position: absolute;
             top: 16px;
@@ -116,12 +103,6 @@
             transition: transform 0.05s;
         }
 
-        @media (hover: none) and (pointer: coarse) {
-            #info {
-                display: none;
-            }
-        }
-
         @media (max-width: 640px) {
             #top-right-controls {
                 gap: 8px;
@@ -133,10 +114,6 @@
 <body>
     <div id="top-right-controls">
         <button id="fullscreen-btn" title="Toggle fullscreen (F)">⛶</button>
-    </div>
-
-    <div id="info">
-        <p id="position">Position: (0, 0, 0) | Status: Cruising</p>
     </div>
 
     <!-- Virtual joystick (shown on touch devices) -->

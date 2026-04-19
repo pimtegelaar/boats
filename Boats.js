@@ -1583,10 +1583,6 @@ function animate() {
     };
     const shipStatusText = shipStatusLabels[titanic.userData.damageState.phase];
     const positionText = `Pos: (${shipPosition.x.toFixed(1)}, ${shipPosition.y.toFixed(1)}, ${shipPosition.z.toFixed(1)})\nStatus: ${shipStatusText}`;
-    const posElement = document.getElementById('position');
-    if (posElement) {
-        posElement.textContent = positionText;
-    }
 
     renderer.render(scene, camera);
     updateTouchDebug('', positionText);
