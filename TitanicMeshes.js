@@ -25,6 +25,12 @@
         throw new Error('BoatMeshes registry is invalid.');
     }
 
+    function getCircularSternCurve(progress, exponent) {
+        const p = THREE.MathUtils.clamp(progress, 0, 1);
+        const circle = Math.sqrt(Math.max(0, 1 - Math.pow(1 - p, 2)));
+        return Math.pow(circle, exponent);
+    }
+
     function createHullGeometry(options) {
         const {
             length = 224,
@@ -57,8 +63,8 @@
             const bowFactor = 1 - Math.pow(bowT, bowSharpness);
             let sternFactor = sternWidth + (1 - sternWidth) * (1 - Math.pow(sternT, sternSharpness));
             if (sternRound && t < sternStart) {
-                const sternProgress = THREE.MathUtils.clamp(t / Math.max(sternStart, 0.0001), 0, 1);
-                sternFactor = Math.pow(Math.sin(sternProgress * Math.PI * 0.5), sternRoundExponent);
+                const sternProgress = t / Math.max(sternStart, 0.0001);
+                sternFactor = getCircularSternCurve(sternProgress, sternRoundExponent);
             }
             const midFullness = 1 - 0.05 * Math.pow((t - 0.5) / 0.5, 4);
             const halfBeam = Math.max(0, beam * midFullness * bowFactor * sternFactor);
@@ -145,10 +151,10 @@
                 halfWidth = THREE.MathUtils.lerp(centerHalf, bowHalf, Math.pow(bowT, bowExponent));
             } else if (t < sternStart) {
                 if (sternRound) {
-                    // Rounded stern profile: width eases to zero at the aft tip instead of a flat transom.
-                    const sternProgress = THREE.MathUtils.clamp(t / Math.max(sternStart, 0.0001), 0, 1);
-                    const sternCurve = Math.pow(Math.sin(sternProgress * Math.PI * 0.5), sternRoundExponent);
-                    halfWidth = centerHalf * sternCurve;
+                    // Circular stern profile avoids a sharp teardrop-looking aft tip.
+                    const sternProgress = t / Math.max(sternStart, 0.0001);
+                    const sternCurve = getCircularSternCurve(sternProgress, sternRoundExponent);
+                    halfWidth = THREE.MathUtils.lerp(sternHalf, centerHalf, sternCurve);
                 } else {
                     const sternT = (sternStart - t) / sternStart;
                     halfWidth = THREE.MathUtils.lerp(centerHalf, sternHalf, Math.pow(sternT, sternExponent));
@@ -209,6 +215,7 @@
         const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x9f8660, metalness: 0.1, roughness: 0.85 });
 
         const hull = markBreakMode(new THREE.Mesh(createHullGeometry({
+            sternStart: 0.1,
             sternRound: true,
             sternRoundExponent: 0.95
         }), hullMaterial), 'split');
@@ -227,7 +234,7 @@
             bowRise: 1.2,
             sternRise: 0.45,
             bowStart: 0.74,
-            sternStart: 0.20,
+            sternStart: 0.1,
             sternRound: true,
             sternRoundExponent: 0.95
         }), lowerHullMaterial), 'split');
@@ -245,7 +252,7 @@
             sternWidth: 14.4,
             thickness: mainDeckThickness,
             bowStart: 0.57,
-            sternStart: 0.24,
+            sternStart: 0.1,
             bowExponent: 0.95,
             sternExponent: 1.8,
             sternRound: true,
@@ -263,7 +270,7 @@
             sternWidth: 13.8,
             thickness: 0.7,
             bowStart: 0.57,
-            sternStart: 0.24,
+            sternStart: 0.1,
             bowExponent: 0.9,
             sternExponent: 1.85,
             sternRound: true,
