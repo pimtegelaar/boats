@@ -31,6 +31,43 @@
         return Math.pow(circle, exponent);
     }
 
+    function getHullTopHalfWidthAtT(t, options) {
+        const {
+            beam = 12.6,
+            bowSharpness = 1.85,
+            sternSharpness = 3.1,
+            sternWidth = 0.32,
+            bowStart = 0.76,
+            sternStart = 0.20,
+            sternRound = false,
+            sternRoundExponent = 1.0,
+            topEdgeScale = 0.94
+        } = options || {};
+
+        const bowT = THREE.MathUtils.clamp((t - bowStart) / (1 - bowStart), 0, 1);
+        const sternT = THREE.MathUtils.clamp((sternStart - t) / sternStart, 0, 1);
+        const bowFactor = 1 - Math.pow(bowT, bowSharpness);
+
+        let sternFactor = sternWidth + (1 - sternWidth) * (1 - Math.pow(sternT, sternSharpness));
+        if (sternRound && t < sternStart) {
+            const sternProgress = t / Math.max(sternStart, 0.0001);
+            sternFactor = getCircularSternCurve(sternProgress, sternRoundExponent);
+        }
+
+        const midFullness = 1 - 0.05 * Math.pow((t - 0.5) / 0.5, 4);
+        const halfBeam = Math.max(0, beam * midFullness * bowFactor * sternFactor);
+        return halfBeam * topEdgeScale;
+    }
+
+    function getHullSheerAtT(t, options) {
+        const {
+            bowRise = 2.2,
+            sternRise = 0.9
+        } = options || {};
+
+        return 5 + bowRise * Math.pow(t, 2.5) + sternRise * Math.pow(1 - t, 2.1);
+    }
+
     function createHullGeometry(options) {
         const {
             length = 224,
@@ -69,7 +106,7 @@
             const midFullness = 1 - 0.05 * Math.pow((t - 0.5) / 0.5, 4);
             const halfBeam = Math.max(0, beam * midFullness * bowFactor * sternFactor);
             const draftScale = 0.95 + 0.05 * Math.sin(Math.PI * t);
-            const sheer = 0.25 + bowRise * Math.pow(t, 2.5) + sternRise * Math.pow(1 - t, 2.1);
+            const sheer = getHullSheerAtT(t, { bowRise, sternRise });
 
             for (let a = 0; a <= sectionSegments; a++) {
                 const u = a / sectionSegments;
@@ -129,7 +166,9 @@
             bowExponent = 1.5,
             sternExponent = 1.2,
             sternRound = false,
-            sternRoundExponent = 1.0
+            sternRoundExponent = 1.0,
+            halfWidthAtT = null,
+            centerYAtT = null
         } = options || {};
 
         const vertices = [];
@@ -144,9 +183,12 @@
         for (let s = 0; s <= stations; s++) {
             const t = s / stations;
             const z = (t - 0.5) * length;
+            const centerY = typeof centerYAtT === 'function' ? centerYAtT(t) : 0;
 
             let halfWidth = centerHalf;
-            if (t > bowStart) {
+            if (typeof halfWidthAtT === 'function') {
+                halfWidth = Math.max(0, halfWidthAtT(t));
+            } else if (t > bowStart) {
                 const bowT = (t - bowStart) / (1 - bowStart);
                 halfWidth = THREE.MathUtils.lerp(centerHalf, bowHalf, Math.pow(bowT, bowExponent));
             } else if (t < sternStart) {
@@ -161,10 +203,10 @@
                 }
             }
 
-            vertices.push(-halfWidth, halfThickness, z);
-            vertices.push(halfWidth, halfThickness, z);
-            vertices.push(-halfWidth, -halfThickness, z);
-            vertices.push(halfWidth, -halfThickness, z);
+            vertices.push(-halfWidth, centerY + halfThickness, z);
+            vertices.push(halfWidth, centerY + halfThickness, z);
+            vertices.push(-halfWidth, centerY - halfThickness, z);
+            vertices.push(halfWidth, centerY - halfThickness, z);
 
             uvs.push(0, t, 1, t, 0, t, 1, t);
         }
@@ -253,11 +295,15 @@
         const whitePaintMaterial = new THREE.MeshStandardMaterial({ color: 0xf1efe9, metalness: 0.15, roughness: 0.8 });
         const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x9f8660, metalness: 0.1, roughness: 0.85 });
 
-        const hullGeometry = createHullGeometry({
+        const hullGeometryOptions = {
             sternStart: 0.1,
             sternRound: true,
-            sternRoundExponent: 0.95
-        });
+            sternRoundExponent: 0.95,
+            draft: 20.0,
+            bowRise: 2.8,
+            sternRise: 1.3
+        };
+        const hullGeometry = createHullGeometry(hullGeometryOptions);
 
         const hull = markBreakMode(new THREE.Mesh(hullGeometry, upperHullMaterial), 'split');
         applyLocalClippingPlane(
@@ -280,54 +326,56 @@
         group.add(lowerHull);
 
         const mainDeckThickness = 1.4;
-        const mainDeckY = 14.25;
+        // Slight inset avoids a visible floating seam while keeping the deck visually on the hull.
+        const mainDeckSeatInset = 0.05;
+        const superstructureDeckReferenceT = (3 / 224) + 0.5;
         const mainDeck = markBreakMode(new THREE.Mesh(createTaperedSlabGeometry({
-            length: 202,
-            centerWidth: 21.1,
-            bowWidth: 4.8,
-            sternWidth: 14.4,
+            length: 224,
             thickness: mainDeckThickness,
-            bowStart: 0.57,
-            sternStart: 0.1,
-            bowExponent: 0.95,
-            sternExponent: 1.8,
-            sternRound: true,
-            sternRoundExponent: 0.95
+            stations: 72,
+            halfWidthAtT(t) {
+                // Slight inset keeps the deck edge just inside the hull lip.
+                return Math.max(0, getHullTopHalfWidthAtT(t, hullGeometryOptions) - 0.45);
+            },
+            centerYAtT(t) {
+                return getHullSheerAtT(t, hullGeometryOptions) - mainDeckSeatInset;
+            }
         }), deckMaterial), 'split');
-        mainDeck.position.y = mainDeckY;
+        mainDeck.position.y = hullPlacementY;
         mainDeck.castShadow = true;
         mainDeck.receiveShadow = true;
         group.add(mainDeck);
 
-        const sheerStripe = markBreakMode(new THREE.Mesh(createTaperedSlabGeometry({
-            length: 206,
-            centerWidth: 21.7,
-            bowWidth: 4.4,
-            sternWidth: 13.8,
-            thickness: 0.7,
-            bowStart: 0.57,
-            sternStart: 0.1,
-            bowExponent: 0.9,
-            sternExponent: 1.85,
-            sternRound: true,
-            sternRoundExponent: 0.95
-        }), whitePaintMaterial), 'split');
-        sheerStripe.position.y = 13.4;
-        sheerStripe.castShadow = true;
-        group.add(sheerStripe);
-
         const superstructureHeight = 4.6;
         const superstructureLength = 132;
         const superstructureDeckOverlap = 0.12;
-        const superstructureY = mainDeckY + mainDeckThickness * 0.5 + superstructureHeight * 0.5 - superstructureDeckOverlap;
-        const superstructure = markBreakMode(new THREE.Mesh(new THREE.BoxGeometry(12.8, superstructureHeight, superstructureLength), whitePaintMaterial), 'split');
+        const superstructureY = hullPlacementY
+            + getHullSheerAtT(superstructureDeckReferenceT, hullGeometryOptions)
+            - mainDeckSeatInset
+            + mainDeckThickness * 0.5
+            + superstructureHeight * 0.5
+            - superstructureDeckOverlap;
+        const superstructure = markBreakMode(new THREE.Mesh(createTaperedSlabGeometry({
+            length: superstructureLength,
+            centerWidth: 12.8,
+            bowWidth: 12.8,
+            sternWidth: 12.8,
+            thickness: superstructureHeight,
+            stations: 72,
+            halfWidthAtT() {
+                return 6.4; // constant half-width
+            },
+            centerYAtT() {
+                return 0; // constant height, positioned via mesh.position
+            }
+        }), whitePaintMaterial), 'split');
         superstructure.position.set(0, superstructureY, 3);
         superstructure.castShadow = true;
         group.add(superstructure);
 
         const funnelPositions = [50, 20, -10, -40];
         const funnelRake = -0.09;
-        const funnelBodyHeight = 26;
+        const funnelBodyHeight = 22;
         const funnelBaseOverlap = 0.12;
         const superstructureTopY = superstructure.position.y + superstructureHeight * 0.5;
         const funnelBodyY = superstructureTopY + Math.cos(funnelRake) * (funnelBodyHeight * 0.5) - funnelBaseOverlap;

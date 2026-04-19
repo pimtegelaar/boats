@@ -491,7 +491,8 @@ function createIcebergField(options = {}) {
 
 const icebergField = createIcebergField();
 
-const shipSplitZ = -8;
+// Place the breakup seam between funnel 2 (z=20) and funnel 3 (z=-10).
+const shipSplitZ = 5;
 const shipBreakSeamInset = 0;
 const shipSplitDrift = {
     foreZSpeed: 3.1,
