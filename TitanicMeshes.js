@@ -243,6 +243,63 @@
         return geometry;
     }
 
+    function createSideWindowGeometry(panels) {
+        const vertices = [];
+        const uvs = [];
+        const indices = [];
+
+        for (const panel of panels) {
+            const {
+                x = 0,
+                y = 0,
+                z = 0,
+                halfHeight = 0.1,
+                halfWidth = 0.2,
+                normalSign = 1
+            } = panel || {};
+
+            const zMin = z - halfWidth;
+            const zMax = z + halfWidth;
+            const yMin = y - halfHeight;
+            const yMax = y + halfHeight;
+            const base = vertices.length / 3;
+
+            if (normalSign >= 0) {
+                vertices.push(
+                    x, yMin, zMin,
+                    x, yMax, zMin,
+                    x, yMin, zMax,
+                    x, yMax, zMax
+                );
+                indices.push(base, base + 1, base + 2);
+                indices.push(base + 2, base + 1, base + 3);
+            } else {
+                vertices.push(
+                    x, yMin, zMin,
+                    x, yMin, zMax,
+                    x, yMax, zMin,
+                    x, yMax, zMax
+                );
+                indices.push(base, base + 1, base + 2);
+                indices.push(base + 1, base + 3, base + 2);
+            }
+
+            uvs.push(
+                0, 0,
+                0, 1,
+                1, 0,
+                1, 1
+            );
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        return geometry;
+    }
+
     function markBreakMode(mesh, breakMode) {
         mesh.userData.breakMode = breakMode;
         return mesh;
@@ -294,6 +351,13 @@
         });
         const whitePaintMaterial = new THREE.MeshStandardMaterial({ color: 0xf1efe9, metalness: 0.15, roughness: 0.8 });
         const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x9f8660, metalness: 0.1, roughness: 0.85 });
+        const windowMaterial = new THREE.MeshStandardMaterial({
+            color: 0x111722,
+            emissive: 0x273142,
+            emissiveIntensity: 0.35,
+            metalness: 0.08,
+            roughness: 0.45
+        });
 
         const hullGeometryOptions = {
             sternStart: 0.1,
@@ -324,6 +388,23 @@
         lowerHull.castShadow = true;
         lowerHull.receiveShadow = true;
         group.add(lowerHull);
+
+        const hullStripeThickness = 0.7;
+        const hullStripe = markBreakMode(new THREE.Mesh(createTaperedSlabGeometry({
+            length: 221,
+            thickness: hullStripeThickness,
+            stations: 72,
+            halfWidthAtT(t) {
+                return Math.max(0, getHullTopHalfWidthAtT(t, hullGeometryOptions) - 0.16);
+            },
+            centerYAtT(t) {
+                return getHullSheerAtT(t, hullGeometryOptions) - 1.1;
+            }
+        }), whitePaintMaterial), 'split');
+        hullStripe.position.y = hullPlacementY;
+        hullStripe.castShadow = true;
+        hullStripe.receiveShadow = true;
+        group.add(hullStripe);
 
         const mainDeckThickness = 1.4;
         // Slight inset avoids a visible floating seam while keeping the deck visually on the hull.
@@ -372,6 +453,45 @@
         superstructure.position.set(0, superstructureY, 3);
         superstructure.castShadow = true;
         group.add(superstructure);
+
+        const hullWindowPanels = [];
+        const hullWindowRows = [-2.25, -3.55, -4.85];
+        for (let t = 0.11; t <= 0.93; t += 0.022) {
+            const halfWidth = getHullTopHalfWidthAtT(t, hullGeometryOptions);
+            if (halfWidth < 2.2) {
+                continue;
+            }
+
+            const z = (t - 0.5) * 224;
+            const localX = halfWidth + 0.08;
+            for (const rowOffset of hullWindowRows) {
+                const y = getHullSheerAtT(t, hullGeometryOptions) + rowOffset;
+                hullWindowPanels.push({ x: localX, y, z, halfHeight: 0.1, halfWidth: 0.22, normalSign: 1 });
+                hullWindowPanels.push({ x: -localX, y, z, halfHeight: 0.1, halfWidth: 0.22, normalSign: -1 });
+            }
+        }
+
+        const hullWindows = markBreakMode(new THREE.Mesh(createSideWindowGeometry(hullWindowPanels), windowMaterial), 'split');
+        hullWindows.position.y = hullPlacementY;
+        group.add(hullWindows);
+
+        const superstructureWindowPanels = [];
+        const superstructureWindowRows = [-1.35, -0.15, 1.05];
+        for (let z = -58; z <= 58; z += 3.2) {
+            const localZ = z + superstructure.position.z;
+            const localX = 6.4 + 0.05;
+            for (const rowOffset of superstructureWindowRows) {
+                const y = superstructureY + rowOffset;
+                superstructureWindowPanels.push({ x: localX, y, z: localZ, halfHeight: 0.15, halfWidth: 0.46, normalSign: 1 });
+                superstructureWindowPanels.push({ x: -localX, y, z: localZ, halfHeight: 0.15, halfWidth: 0.46, normalSign: -1 });
+            }
+        }
+
+        const superstructureWindows = markBreakMode(
+            new THREE.Mesh(createSideWindowGeometry(superstructureWindowPanels), windowMaterial),
+            'split'
+        );
+        group.add(superstructureWindows);
 
         const funnelPositions = [50, 20, -10, -40];
         const funnelRake = -0.09;
