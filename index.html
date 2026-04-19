@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <!-- Cache-busting: force refresh on every visit -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Boats - Titanic Navigator</title>
     <style>
         * {
@@ -188,11 +192,21 @@
     <script>
         // Fullscreen functionality with mobile support
         const fullscreenBtn = document.getElementById('fullscreen-btn');
-        const canvas = document.querySelector('canvas');
+        let canvas = null;
+
+        // Wait for canvas to be created by THREE.js
+        function getCanvas() {
+            if (!canvas) {
+                canvas = document.querySelector('canvas');
+            }
+            return canvas;
+        }
 
         function isFullscreenActive() {
-            return !!(document.fullscreenElement || document.webkitFullscreenElement ||
-                      document.mozFullScreenElement || document.msFullscreenElement);
+            return !!(document.fullscreenElement ||
+                      document.webkitFullscreenElement ||
+                      document.mozFullScreenElement ||
+                      document.msFullscreenElement);
         }
 
         function updateFullscreenButtonText() {
@@ -203,53 +217,96 @@
             }
         }
 
-        function toggleFullscreen() {
-            if (isFullscreenActive()) {
-                // Exit fullscreen using vendor-prefixed methods
-                if (document.exitFullscreen) {
-                    document.exitFullscreen();
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                } else if (document.mozCancelFullScreen) {
-                    document.mozCancelFullScreen();
-                } else if (document.msExitFullscreen) {
-                    document.msExitFullscreen();
+        function exitFullscreen() {
+            if (document.exitFullscreen) {
+                document.exitFullscreen().catch(err => console.warn('Exit fullscreen failed:', err));
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+        }
+
+        function enterFullscreen() {
+            const element = getCanvas() || document.documentElement;
+
+            // Try standard API first
+            if (element.requestFullscreen) {
+                element.requestFullscreen().catch(err => {
+                    console.warn('Standard requestFullscreen failed:', err);
+                    tryVendorFullscreen(element);
+                });
+                return;
+            }
+
+            // Try vendor prefixes
+            tryVendorFullscreen(element);
+        }
+
+        function tryVendorFullscreen(element) {
+            if (element.webkitRequestFullscreen) {
+                try {
+                    element.webkitRequestFullscreen();
+                } catch (err) {
+                    console.warn('webkitRequestFullscreen failed:', err);
+                }
+            } else if (element.mozRequestFullScreen) {
+                try {
+                    element.mozRequestFullScreen();
+                } catch (err) {
+                    console.warn('mozRequestFullScreen failed:', err);
+                }
+            } else if (element.msRequestFullscreen) {
+                try {
+                    element.msRequestFullscreen();
+                } catch (err) {
+                    console.warn('msRequestFullscreen failed:', err);
                 }
             } else {
-                // Try to enter fullscreen on canvas first (better mobile support)
-                const fullscreenElement = canvas || document.documentElement;
-                const requestFullscreen = fullscreenElement.requestFullscreen ||
-                                        fullscreenElement.webkitRequestFullscreen ||
-                                        fullscreenElement.mozRequestFullScreen ||
-                                        fullscreenElement.msRequestFullscreen;
-
-                if (requestFullscreen) {
-                    requestFullscreen.call(fullscreenElement).catch(err => {
-                        console.warn(`Fullscreen request failed: ${err.message}`);
-                    });
-                } else {
-                    console.warn('Fullscreen API not supported on this device');
+                // As last resort, try on the body or document element
+                const fallback = element === document.documentElement ? document.body : document.documentElement;
+                if (fallback && fallback.webkitRequestFullscreen) {
+                    try {
+                        fallback.webkitRequestFullscreen();
+                    } catch (err) {
+                        console.warn('Fallback fullscreen failed:', err);
+                    }
                 }
             }
         }
 
-        fullscreenBtn.addEventListener('click', toggleFullscreen);
+        function toggleFullscreen() {
+            if (isFullscreenActive()) {
+                exitFullscreen();
+            } else {
+                enterFullscreen();
+            }
+        }
+
+        fullscreenBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleFullscreen();
+        });
 
         // F key to toggle fullscreen
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'f' || e.key === 'F') {
+            if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey) {
+                e.preventDefault();
                 toggleFullscreen();
             }
         });
 
         // Update button text when fullscreen state changes
-        document.addEventListener('fullscreenchange', updateFullscreenButtonText);
-        document.addEventListener('webkitfullscreenchange', updateFullscreenButtonText);
-        document.addEventListener('mozfullscreenchange', updateFullscreenButtonText);
-        document.addEventListener('msfullscreenchange', updateFullscreenButtonText);
+        const fullscreenEvents = ['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'msfullscreenchange'];
+        fullscreenEvents.forEach(eventName => {
+            document.addEventListener(eventName, updateFullscreenButtonText);
+        });
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="Boats.js"></script>
+    <script src="Boats.js?v=2026.04.19.1"></script>
 </body>
 </html>

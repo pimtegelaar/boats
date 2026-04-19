@@ -1,3 +1,12 @@
+// Cache invalidation for service workers
+if ('caches' in window) {
+    caches.keys().then(cacheNames => {
+        cacheNames.forEach(cacheName => {
+            caches.delete(cacheName);
+        });
+    });
+}
+
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87ceeb); // Sky blue
