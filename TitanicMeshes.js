@@ -757,14 +757,19 @@
         const funnelBodyMaterial = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.2, roughness: 0.75 });
         const funnelTopMaterial = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.3, roughness: 0.6 });
 
-        for (const z of funnelPositions) {
+        for (let index = 0; index < funnelPositions.length; index++) {
+            const z = funnelPositions[index];
             const funnel = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.9, funnelBodyHeight, 16), funnelBodyMaterial);
+            funnel.name = `funnel-body-${index}`;
             funnel.position.set(0, funnelBodyY, z);
             funnel.rotation.x = funnelRake;
             funnel.castShadow = true;
             group.add(funnel);
 
             const funnelTop = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, funnelTopHeight, 16), funnelTopMaterial);
+            funnelTop.name = `funnel-top-${index}`;
+            funnelTop.userData.isSmokeEmitter = true;
+            funnelTop.userData.smokeTipOffsetY = funnelTopHeight * 0.5;
             funnelTop.position.set(
                 0,
                 funnelBodyY + Math.cos(funnelRake) * topCenterOffset,

@@ -1040,6 +1040,214 @@ function clampFocusJump(candidateFocus, currentFocus, maxJumpDistance) {
     return currentFocus.clone().add(delta.multiplyScalar(maxJumpDistance / distance));
 }
 
+function createSmokeTexture(size = 128) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const gradient = ctx.createRadialGradient(
+        size * 0.45,
+        size * 0.42,
+        size * 0.1,
+        size * 0.5,
+        size * 0.5,
+        size * 0.5
+    );
+
+    gradient.addColorStop(0, 'rgba(235, 235, 235, 0.85)');
+    gradient.addColorStop(0.35, 'rgba(190, 190, 190, 0.48)');
+    gradient.addColorStop(0.7, 'rgba(120, 120, 120, 0.16)');
+    gradient.addColorStop(1, 'rgba(80, 80, 80, 0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, size, size);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.needsUpdate = true;
+    return texture;
+}
+
+function collectShipSmokeEmitters(shipRoot) {
+    const intactEmitters = new Map();
+    const brokenEmitters = new Map();
+
+    shipRoot.userData.intactGroup.traverse((child) => {
+        if (child.isMesh && child.userData.isSmokeEmitter && child.name) {
+            intactEmitters.set(child.name, child);
+        }
+    });
+
+    shipRoot.userData.brokenGroup.traverse((child) => {
+        if (child.isMesh && child.userData.isSmokeEmitter && child.name) {
+            brokenEmitters.set(child.name, child);
+        }
+    });
+
+    return Array.from(intactEmitters.entries()).map(([name, intactMesh]) => ({
+        intactMesh,
+        brokenMesh: brokenEmitters.get(name) || null,
+        tipOffsetY: intactMesh.userData.smokeTipOffsetY || 0,
+        spawnAccumulator: Math.random()
+    }));
+}
+
+function getSmokeEmissionStrength(phase) {
+    switch (phase) {
+        case 'sailing':
+            return 1.9;
+        case 'impactDelay':
+            return 1.6;
+        case 'intactSinking':
+            return 0;
+        case 'splitSinking':
+            return 0;
+        case 'resting':
+            return 0;
+        default:
+            return 0;
+    }
+}
+
+function createSmokeSystem(shipRoot) {
+    const smokeTexture = createSmokeTexture(128);
+    const baseMaterial = new THREE.SpriteMaterial({
+        map: smokeTexture,
+        color: 0x6f6f6f,
+        transparent: true,
+        depthWrite: false,
+        opacity: 0
+    });
+
+    const particleCount = 760;
+    const particles = [];
+    for (let i = 0; i < particleCount; i++) {
+        const sprite = new THREE.Sprite(baseMaterial.clone());
+        sprite.visible = false;
+        sprite.renderOrder = 10;
+        scene.add(sprite);
+        particles.push({
+            sprite,
+            velocity: new THREE.Vector3(),
+            age: 0,
+            life: 1,
+            startScale: 2,
+            endScale: 10,
+            spinSpeed: 0,
+            active: false
+        });
+    }
+
+    return {
+        emitters: collectShipSmokeEmitters(shipRoot),
+        particles,
+        cursor: 0,
+        spawnRate: 22,
+        wind: new THREE.Vector3(0.42, 0.02, 0.08),
+        tempLocal: new THREE.Vector3(),
+        tempWorld: new THREE.Vector3()
+    };
+}
+
+function spawnSmokeParticle(smokeSystem, emitter, sourceMesh) {
+    const particles = smokeSystem.particles;
+    let chosen = null;
+
+    for (let i = 0; i < particles.length; i++) {
+        const particle = particles[(smokeSystem.cursor + i) % particles.length];
+        if (!particle.active) {
+            chosen = particle;
+            smokeSystem.cursor = (smokeSystem.cursor + i + 1) % particles.length;
+            break;
+        }
+    }
+
+    if (!chosen) {
+        chosen = particles[smokeSystem.cursor];
+        smokeSystem.cursor = (smokeSystem.cursor + 1) % particles.length;
+    }
+
+    const ringAngle = Math.random() * Math.PI * 2;
+    const ringRadius = Math.random() * 2.3;
+    smokeSystem.tempLocal.set(
+        Math.cos(ringAngle) * ringRadius,
+        emitter.tipOffsetY + 0.2,
+        Math.sin(ringAngle) * ringRadius
+    );
+    sourceMesh.localToWorld(smokeSystem.tempWorld.copy(smokeSystem.tempLocal));
+
+    chosen.sprite.position.copy(smokeSystem.tempWorld);
+    chosen.sprite.visible = true;
+    chosen.sprite.material.opacity = 0.72;
+    chosen.sprite.material.rotation = Math.random() * Math.PI * 2;
+
+    chosen.startScale = THREE.MathUtils.randFloat(3.4, 5.4);
+    chosen.endScale = THREE.MathUtils.randFloat(20, 32);
+    chosen.sprite.scale.setScalar(chosen.startScale);
+
+    chosen.velocity.set(
+        THREE.MathUtils.randFloatSpread(0.42),
+        THREE.MathUtils.randFloat(3.9, 5.8),
+        THREE.MathUtils.randFloatSpread(0.42)
+    );
+    chosen.spinSpeed = THREE.MathUtils.randFloatSpread(0.38);
+    chosen.life = THREE.MathUtils.randFloat(5.2, 7.8);
+    chosen.age = 0;
+    chosen.active = true;
+}
+
+function updateSmokeSystem(smokeSystem, shipRoot, phase, deltaSeconds) {
+    if (!smokeSystem) {
+        return;
+    }
+
+    const emissionStrength = getSmokeEmissionStrength(phase);
+
+
+    const useBrokenFunnels = phase === 'splitSinking' || phase === 'resting';
+
+    for (const emitter of smokeSystem.emitters) {
+        const sourceMesh = useBrokenFunnels && emitter.brokenMesh ? emitter.brokenMesh : emitter.intactMesh;
+        if (!sourceMesh || emissionStrength <= 0) {
+            continue;
+        }
+
+        sourceMesh.localToWorld(smokeSystem.tempWorld.set(0, emitter.tipOffsetY, 0));
+        if (smokeSystem.tempWorld.y < -1.5) {
+            continue;
+        }
+
+        emitter.spawnAccumulator += smokeSystem.spawnRate * emissionStrength * deltaSeconds;
+        while (emitter.spawnAccumulator >= 1) {
+            spawnSmokeParticle(smokeSystem, emitter, sourceMesh);
+            emitter.spawnAccumulator -= 1;
+        }
+    }
+
+    for (const particle of smokeSystem.particles) {
+        if (!particle.active) {
+            continue;
+        }
+
+        particle.age += deltaSeconds;
+        if (particle.age >= particle.life) {
+            particle.active = false;
+            particle.sprite.visible = false;
+            continue;
+        }
+
+        const progress = particle.age / particle.life;
+        const fade = Math.pow(1 - progress, 1.55);
+        particle.velocity.addScaledVector(smokeSystem.wind, deltaSeconds * 0.5);
+        particle.velocity.y += 0.55 * deltaSeconds;
+        particle.sprite.position.addScaledVector(particle.velocity, deltaSeconds);
+        particle.sprite.material.rotation += particle.spinSpeed * deltaSeconds;
+        particle.sprite.scale.setScalar(THREE.MathUtils.lerp(particle.startScale, particle.endScale, progress));
+
+        const aboveWaterFactor = THREE.MathUtils.clamp((particle.sprite.position.y + 2) / 6, 0.3, 1);
+        particle.sprite.material.opacity = 0.72 * fade * aboveWaterFactor;
+    }
+}
+
 // Create Titanic Ship
 function createTitanic() {
     if (!window.BoatMeshes || typeof window.BoatMeshes.createBoatMesh !== 'function') {
@@ -1117,6 +1325,7 @@ function createTitanic() {
             settleSinkSpeed: 1.05
         })
     };
+    root.userData.smokeSystem = createSmokeSystem(root);
 
     scene.add(root);
     return root;
@@ -1504,6 +1713,7 @@ function animate() {
 
     updateShipDamage(titanic, now, deltaSeconds);
     titanic.updateMatrixWorld(true);
+    updateSmokeSystem(titanic.userData.smokeSystem, titanic, damageState.phase, deltaSeconds);
 
     // Calculate camera position based on mouse look rotation
     const cameraHeight = 40;
