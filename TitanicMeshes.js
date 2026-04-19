@@ -524,7 +524,7 @@
         }
 
         const mastMaterial = new THREE.MeshStandardMaterial({ color: 0x876337, metalness: 0.15, roughness: 0.8 });
-        const foreMast = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 62, 8), mastMaterial);
+        const foreMast = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 56, 8), mastMaterial);
         foreMast.position.set(0, 40, 92);
         foreMast.castShadow = true;
         group.add(foreMast);
