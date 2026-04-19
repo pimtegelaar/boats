@@ -1050,12 +1050,14 @@ function createTitanic() {
     let group = null;
 
     try {
+        group = window.BoatMeshes.createBoatMesh('titanic', {
+            superstructureHeight: 7.9
+        });
+    } catch (titanicMeshError) {
         group = window.BoatMeshes.createBoatMesh('modelMesh', {
             chimneyColor: 0xd4af37
         });
         meshType = 'modelMesh';
-    } catch (modelMeshError) {
-        group = window.BoatMeshes.createBoatMesh('titanic');
     }
 
     if (meshType === 'modelMesh') {

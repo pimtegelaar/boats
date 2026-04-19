@@ -328,8 +328,11 @@
         };
     }
 
-    function createTitanicIntactMesh() {
+    function createTitanicIntactMesh(options) {
         const group = new THREE.Group();
+        const {
+            superstructureHeight = 6.9
+        } = options || {};
 
         const hullPlacementY = 11.1;
         const paintSplitEpsilon = 0.02;
@@ -427,7 +430,6 @@
         mainDeck.receiveShadow = true;
         group.add(mainDeck);
 
-        const superstructureHeight = 4.6;
         const superstructureLength = 132;
         const superstructureDeckOverlap = 0.12;
         const superstructureY = hullPlacementY
@@ -476,7 +478,8 @@
         group.add(hullWindows);
 
         const superstructureWindowPanels = [];
-        const superstructureWindowRows = [-1.35, -0.15, 1.05];
+        const superstructureWindowRowScale = superstructureHeight / 4.6;
+        const superstructureWindowRows = [-1.35, -0.15, 1.05].map((row) => row * superstructureWindowRowScale);
         for (let z = -58; z <= 58; z += 3.2) {
             const localZ = z + superstructure.position.z;
             const localX = 6.4 + 0.05;
@@ -495,7 +498,7 @@
 
         const funnelPositions = [50, 20, -10, -40];
         const funnelRake = -0.09;
-        const funnelBodyHeight = 22;
+        const funnelBodyHeight = 16;
         const funnelBaseOverlap = 0.12;
         const superstructureTopY = superstructure.position.y + superstructureHeight * 0.5;
         const funnelBodyY = superstructureTopY + Math.cos(funnelRake) * (funnelBodyHeight * 0.5) - funnelBaseOverlap;
@@ -506,13 +509,13 @@
         const funnelTopMaterial = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.3, roughness: 0.6 });
 
         for (const z of funnelPositions) {
-            const funnel = new THREE.Mesh(new THREE.CylinderGeometry(2.3, 2.6, funnelBodyHeight, 16), funnelBodyMaterial);
+            const funnel = new THREE.Mesh(new THREE.CylinderGeometry(3.6, 3.9, funnelBodyHeight, 16), funnelBodyMaterial);
             funnel.position.set(0, funnelBodyY, z);
             funnel.rotation.x = funnelRake;
             funnel.castShadow = true;
             group.add(funnel);
 
-            const funnelTop = new THREE.Mesh(new THREE.CylinderGeometry(2.5, 2.5, funnelTopHeight, 16), funnelTopMaterial);
+            const funnelTop = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, funnelTopHeight, 16), funnelTopMaterial);
             funnelTop.position.set(
                 0,
                 funnelBodyY + Math.cos(funnelRake) * topCenterOffset,
