@@ -112,31 +112,33 @@
             transition: transform 0.05s;
         }
 
-        /* Hide keyboard hints on touch-primary devices */
+        /* Hide control instructions on touch-primary devices to preserve screen space. */
         @media (hover: none) and (pointer: coarse) {
-            #keyboard-controls { display: none; }
+            #control-instructions { display: none; }
         }
     </style>
 </head>
 <body>
-    <div id="build-version">Build v2026.04.18-touch-fix-4</div>
+    <div id="build-version">Build v2026.04.18-touch-fix-5</div>
 
     <div id="info">
         <h2>🚢 Titanic Navigator</h2>
-        <p>Controls:</p>
-        <div id="keyboard-controls">
-            <p><span class="key">W</span> - Move Forward</p>
-            <p><span class="key">A</span> - Strafe Left</p>
-            <p><span class="key">S</span> - Move Backward</p>
-            <p><span class="key">D</span> - Strafe Right</p>
-            <p><span class="key">SPACE</span> - Move Up</p>
-            <p><span class="key">CTRL</span> - Move Down</p>
+        <div id="control-instructions">
+            <p>Controls:</p>
+            <div id="keyboard-controls">
+                <p><span class="key">W</span> - Move Forward</p>
+                <p><span class="key">A</span> - Strafe Left</p>
+                <p><span class="key">S</span> - Move Backward</p>
+                <p><span class="key">D</span> - Strafe Right</p>
+                <p><span class="key">SPACE</span> - Move Up</p>
+                <p><span class="key">CTRL</span> - Move Down</p>
+            </div>
+            <p><span class="key">LMB + Drag</span> - Look Around</p>
+            <p><span class="key">Wheel</span> - Zoom In/Out</p>
+            <p><span class="key">RMB + Drag</span> - Pan Camera</p>
+            <p id="touch-hint" style="display:none">👆 Drag circle to steer | Drag screen to look | Pinch to zoom</p>
+            <hr style="margin: 10px 0; opacity: 0.3;">
         </div>
-        <p><span class="key">LMB + Drag</span> - Look Around</p>
-        <p><span class="key">Wheel</span> - Zoom In/Out</p>
-        <p><span class="key">RMB + Drag</span> - Pan Camera</p>
-        <p id="touch-hint" style="display:none">👆 Drag circle to steer | Drag screen to look | Pinch to zoom</p>
-        <hr style="margin: 10px 0; opacity: 0.3;">
         <p id="position">Position: (0, 0, 0)</p>
     </div>
 

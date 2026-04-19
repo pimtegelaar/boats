@@ -21,7 +21,7 @@ renderer.shadowMap.enabled = true;
 renderer.localClippingEnabled = true;
 document.body.appendChild(renderer.domElement);
 
-const BUILD_VERSION = 'v2026.04.18-touch-fix-4';
+const BUILD_VERSION = 'v2026.04.19-split-separation-1';
 const buildVersionElement = document.getElementById('build-version');
 if (buildVersionElement) {
     buildVersionElement.textContent = `Build ${BUILD_VERSION}`;
@@ -442,6 +442,12 @@ const icebergField = createIcebergField();
 
 const shipSplitZ = -8;
 const shipBreakSeamInset = 0.55;
+const shipSplitDrift = {
+    foreZSpeed: 3.1,
+    aftZSpeed: 2.2,
+    foreMaxOffsetZ: 54,
+    aftMaxOffsetZ: -40
+};
 const shipCollisionProbeRadius = 18;
 const shipCollisionProbeOffsets = [
     new THREE.Vector3(0, 8, 110),
@@ -909,6 +915,8 @@ function updateShipDamage(ship, now, deltaSeconds) {
         const aftRiseDuration = 1.0;
         const aftRiseSpeed = 1.0;
         const aftSinkSpeed = splitElapsed < aftRiseDuration ? 0 : 6.6;
+        const foreDriftStep = shipSplitDrift.foreZSpeed * deltaSeconds;
+        const aftDriftStep = shipSplitDrift.aftZSpeed * deltaSeconds;
 
         // Let the split parent slowly level while halves keep their own local settle motion.
         brokenGroup.rotation.x = THREE.MathUtils.lerp(brokenGroup.rotation.x, 0, deltaSeconds * 0.42);
@@ -926,7 +934,7 @@ function updateShipDamage(ship, now, deltaSeconds) {
 
         if (!foreFloorState.settled) {
             if (!foreFloorState.hasTouchedFloor) {
-                foreHalf.position.z += 1.3 * deltaSeconds;
+                foreHalf.position.z = Math.min(shipSplitDrift.foreMaxOffsetZ, foreHalf.position.z + foreDriftStep);
                 foreHalf.position.y -= foreSinkSpeed * deltaSeconds;
                 foreHalf.rotation.x = Math.min(1.2, foreHalf.rotation.x + 0.16 * deltaSeconds);
                 foreHalf.rotation.z = Math.max(-0.26, foreHalf.rotation.z - 0.05 * deltaSeconds);
@@ -936,7 +944,7 @@ function updateShipDamage(ship, now, deltaSeconds) {
 
         if (!aftFloorState.settled) {
             if (!aftFloorState.hasTouchedFloor) {
-                aftHalf.position.z -= 0.9 * deltaSeconds;
+                aftHalf.position.z = Math.max(shipSplitDrift.aftMaxOffsetZ, aftHalf.position.z - aftDriftStep);
                 aftHalf.position.y += splitElapsed < aftRiseDuration
                     ? aftRiseSpeed * deltaSeconds
                     : -aftSinkSpeed * deltaSeconds;
@@ -1749,7 +1757,6 @@ window.addEventListener('resize', () => {
 (function setupJoystick() {
     const container = document.getElementById('joystick-container');
     const knob      = document.getElementById('joystick-knob');
-    const touchHint = document.getElementById('touch-hint');
 
     if (!container || !knob) return;
 
@@ -1794,7 +1801,6 @@ window.addEventListener('resize', () => {
         // Reveal the joystick on first touch (works for any touch on page too)
         if (container.style.display === 'none' || container.style.display === '') {
             container.style.display = 'block';
-            if (touchHint) touchHint.style.display = 'block';
         }
 
         if (activeTouchId !== null) return; // already tracking a touch
@@ -1858,7 +1864,6 @@ window.addEventListener('resize', () => {
     // On pointer-coarse (touch) devices show the joystick immediately
     if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
         container.style.display = 'block';
-        if (touchHint) touchHint.style.display = 'block';
     }
 })();
 
