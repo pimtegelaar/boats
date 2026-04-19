@@ -1663,8 +1663,15 @@ document.addEventListener('mousemove', (e) => {
 // Navigation variables
 const shipPosition = new THREE.Vector3(0, 0, 0);
 const moveSpeed = 0.5;
+const mobileMoveSpeedMultiplier = 1.8;
 const rotationSpeed = 0.003;
 let lastFrameTime = performance.now() * 0.001;
+
+function getCurrentMoveSpeed() {
+    const isCoarsePointer = window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+    const isTouchDriving = joystickTouchIds.size > 0 || activeLookTouchId !== null || pinchActive;
+    return (isCoarsePointer || isTouchDriving) ? moveSpeed * mobileMoveSpeedMultiplier : moveSpeed;
+}
 
 // Forward direction vector for the ship. The bow faces +Z in the model.
 const shipForward = new THREE.Vector3(0, 0, 1);
@@ -1689,13 +1696,14 @@ function animate() {
     // Handle movement input while the ship is still under player control.
     const damageState = titanic.userData.damageState;
     if (damageState.phase === 'sailing') {
+        const currentMoveSpeed = getCurrentMoveSpeed();
         const forward = shipForward.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), shipYaw);
 
         if (keys['w']) {
-            shipPosition.add(forward.clone().multiplyScalar(moveSpeed));
+            shipPosition.add(forward.clone().multiplyScalar(currentMoveSpeed));
         }
         if (keys['s']) {
-            shipPosition.add(forward.clone().multiplyScalar(-moveSpeed));
+            shipPosition.add(forward.clone().multiplyScalar(-currentMoveSpeed));
         }
         if (keys['a']) {
             shipYaw += rotationSpeed;
@@ -1704,10 +1712,10 @@ function animate() {
             shipYaw -= rotationSpeed;
         }
         if (keys[' ']) {
-            shipPosition.y += moveSpeed;
+            shipPosition.y += currentMoveSpeed;
         }
         if (keys['control']) {
-            shipPosition.y -= moveSpeed;
+            shipPosition.y -= currentMoveSpeed;
         }
 
         // Rotate ship with Q and E keys (optional, but nice for ship rotation)
