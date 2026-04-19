@@ -55,10 +55,19 @@
             margin: 5px 0;
         }
 
-        #build-version {
+        #top-right-controls {
             position: absolute;
             top: 16px;
             right: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 12px;
+            max-width: calc(100vw - 32px);
+            z-index: 120;
+        }
+
+        #build-version {
             color: #d8f2ff;
             background: rgba(0, 0, 0, 0.65);
             border: 1px solid rgba(216, 242, 255, 0.3);
@@ -66,7 +75,25 @@
             padding: 6px 10px;
             font-size: 12px;
             font-family: monospace;
-            z-index: 120;
+            white-space: nowrap;
+        }
+
+        #fullscreen-btn {
+            background: rgba(0, 0, 0, 0.65);
+            border: 1px solid rgba(216, 242, 255, 0.3);
+            color: #d8f2ff;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 12px;
+            font-family: monospace;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+            white-space: nowrap;
+        }
+
+        #fullscreen-btn:hover {
+            background: rgba(0, 0, 0, 0.8);
+            border-color: rgba(216, 242, 255, 0.6);
         }
 
         .key {
@@ -116,10 +143,20 @@
         @media (hover: none) and (pointer: coarse) {
             #control-instructions { display: none; }
         }
+
+        @media (max-width: 640px) {
+            #top-right-controls {
+                gap: 8px;
+                flex-wrap: wrap;
+            }
+        }
     </style>
 </head>
 <body>
-    <div id="build-version">Build v2026.04.18-touch-fix-5</div>
+    <div id="top-right-controls">
+        <button id="fullscreen-btn" title="Toggle fullscreen (F)">⛶ Fullscreen</button>
+        <div id="build-version">Build v2026.04.18-full-screen2</div>
+    </div>
 
     <div id="info">
         <h2>🚢 Titanic Navigator</h2>
@@ -147,6 +184,70 @@
         <div id="joystick-base"></div>
         <div id="joystick-knob"></div>
     </div>
+
+    <script>
+        // Fullscreen functionality with mobile support
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const canvas = document.querySelector('canvas');
+
+        function isFullscreenActive() {
+            return !!(document.fullscreenElement || document.webkitFullscreenElement ||
+                      document.mozFullScreenElement || document.msFullscreenElement);
+        }
+
+        function updateFullscreenButtonText() {
+            if (isFullscreenActive()) {
+                fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+            } else {
+                fullscreenBtn.textContent = '⛶ Fullscreen';
+            }
+        }
+
+        function toggleFullscreen() {
+            if (isFullscreenActive()) {
+                // Exit fullscreen using vendor-prefixed methods
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            } else {
+                // Try to enter fullscreen on canvas first (better mobile support)
+                const fullscreenElement = canvas || document.documentElement;
+                const requestFullscreen = fullscreenElement.requestFullscreen ||
+                                        fullscreenElement.webkitRequestFullscreen ||
+                                        fullscreenElement.mozRequestFullScreen ||
+                                        fullscreenElement.msRequestFullscreen;
+
+                if (requestFullscreen) {
+                    requestFullscreen.call(fullscreenElement).catch(err => {
+                        console.warn(`Fullscreen request failed: ${err.message}`);
+                    });
+                } else {
+                    console.warn('Fullscreen API not supported on this device');
+                }
+            }
+        }
+
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+        // F key to toggle fullscreen
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'f' || e.key === 'F') {
+                toggleFullscreen();
+            }
+        });
+
+        // Update button text when fullscreen state changes
+        document.addEventListener('fullscreenchange', updateFullscreenButtonText);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenButtonText);
+        document.addEventListener('mozfullscreenchange', updateFullscreenButtonText);
+        document.addEventListener('msfullscreenchange', updateFullscreenButtonText);
+    </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="Boats.js"></script>
