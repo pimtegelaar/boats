@@ -498,7 +498,11 @@ const shipSplitDrift = {
     foreZSpeed: 3.1,
     aftZSpeed: 2.2,
     foreMaxOffsetZ: 54,
-    aftMaxOffsetZ: -40
+    aftMaxOffsetZ: -40,
+    // Current effect: drag pieces further apart as ship sinks
+    currentAccelerationStart: 4.0, // seconds into split sinking before current accelerates
+    currentStrength: 2.4, // multiplier for drift speeds after current starts
+    currentMaxOffsetMultiplier: 2.2 // how much current extends max offset distances
 };
 const shipCollisionProbeRadius = 18;
 const shipCollisionProbeOffsets = [
@@ -943,8 +947,20 @@ function updateShipDamage(ship, now, deltaSeconds) {
         const aftRiseDuration = 1.0;
         const aftRiseSpeed = 1.0;
         const aftSinkSpeed = splitElapsed < aftRiseDuration ? 0 : 6.6;
-        const foreDriftStep = shipSplitDrift.foreZSpeed * deltaSeconds;
-        const aftDriftStep = shipSplitDrift.aftZSpeed * deltaSeconds;
+        
+        // Apply current effect: increase drift speeds and maximum offsets after a delay
+        const currentActive = splitElapsed > shipSplitDrift.currentAccelerationStart;
+        const currentMultiplier = currentActive ? shipSplitDrift.currentStrength : 1.0;
+        const foreDriftStep = shipSplitDrift.foreZSpeed * currentMultiplier * deltaSeconds;
+        const aftDriftStep = shipSplitDrift.aftZSpeed * currentMultiplier * deltaSeconds;
+        
+        // Extend maximum offsets as current pulls pieces apart
+        const currentForeMaxOffsetZ = currentActive 
+            ? shipSplitDrift.foreMaxOffsetZ * shipSplitDrift.currentMaxOffsetMultiplier
+            : shipSplitDrift.foreMaxOffsetZ;
+        const currentAftMaxOffsetZ = currentActive
+            ? shipSplitDrift.aftMaxOffsetZ * shipSplitDrift.currentMaxOffsetMultiplier
+            : shipSplitDrift.aftMaxOffsetZ;
 
         // Let the split parent slowly level while halves keep their own local settle motion.
         brokenGroup.rotation.x = THREE.MathUtils.lerp(brokenGroup.rotation.x, 0, deltaSeconds * 0.42);
@@ -962,7 +978,7 @@ function updateShipDamage(ship, now, deltaSeconds) {
 
         if (!foreFloorState.settled) {
             if (!foreFloorState.hasTouchedFloor) {
-                foreHalf.position.z = Math.min(shipSplitDrift.foreMaxOffsetZ, foreHalf.position.z + foreDriftStep);
+                foreHalf.position.z = Math.min(currentForeMaxOffsetZ, foreHalf.position.z + foreDriftStep);
                 foreHalf.position.y -= foreSinkSpeed * deltaSeconds;
                 foreHalf.rotation.x = Math.min(1.2, foreHalf.rotation.x + 0.16 * deltaSeconds);
                 foreHalf.rotation.z = Math.max(-0.26, foreHalf.rotation.z - 0.05 * deltaSeconds);
@@ -972,7 +988,7 @@ function updateShipDamage(ship, now, deltaSeconds) {
 
         if (!aftFloorState.settled) {
             if (!aftFloorState.hasTouchedFloor) {
-                aftHalf.position.z = Math.max(shipSplitDrift.aftMaxOffsetZ, aftHalf.position.z - aftDriftStep);
+                aftHalf.position.z = Math.max(currentAftMaxOffsetZ, aftHalf.position.z - aftDriftStep);
                 aftHalf.position.y += splitElapsed < aftRiseDuration
                     ? aftRiseSpeed * deltaSeconds
                     : -aftSinkSpeed * deltaSeconds;
