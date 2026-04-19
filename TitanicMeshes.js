@@ -524,15 +524,56 @@
         }
 
         const mastMaterial = new THREE.MeshStandardMaterial({ color: 0x876337, metalness: 0.15, roughness: 0.8 });
-        const foreMast = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, 56, 8), mastMaterial);
+        const guideWireMaterial = new THREE.MeshStandardMaterial({ color: 0x3d3d3f, metalness: 0.35, roughness: 0.65 });
+        const mastHeight = 56;
+        const guideWireAttachRatio = 0.5;
+        const guideWireInset = 0.75;
+        const guideWireDeckLift = 0.08;
+        const guideWireUpAxis = new THREE.Vector3(0, 1, 0);
+
+        function addGuideWire(start, end) {
+            const direction = new THREE.Vector3().subVectors(end, start);
+            const wireLength = direction.length();
+            if (wireLength <= 0.0001) {
+                return;
+            }
+
+            const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, wireLength, 6), guideWireMaterial);
+            wire.position.copy(start).add(end).multiplyScalar(0.5);
+            wire.quaternion.setFromUnitVectors(guideWireUpAxis, direction.normalize());
+            wire.castShadow = true;
+            group.add(wire);
+        }
+
+        function addMastGuideWires(mastCenterY, mastZ) {
+            const t = THREE.MathUtils.clamp((mastZ / 224) + 0.5, 0, 1);
+            const mastBaseY = mastCenterY - mastHeight * 0.5;
+            const attachY = mastBaseY + mastHeight * guideWireAttachRatio;
+            const attachPoint = new THREE.Vector3(0, attachY, mastZ);
+            const deckY = hullPlacementY
+                + getHullSheerAtT(t, hullGeometryOptions)
+                - mainDeckSeatInset
+                + mainDeckThickness * 0.5
+                + guideWireDeckLift;
+            const guideWireRunDistance = Math.max(2.3, getHullTopHalfWidthAtT(t, hullGeometryOptions) - guideWireInset);
+            const foreZ = THREE.MathUtils.clamp(mastZ + guideWireRunDistance, -112, 112);
+            const aftZ = THREE.MathUtils.clamp(mastZ - guideWireRunDistance, -112, 112);
+
+            addGuideWire(attachPoint, new THREE.Vector3(0, deckY, foreZ));
+            addGuideWire(attachPoint, new THREE.Vector3(0, deckY, aftZ));
+        }
+
+        const foreMast = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.55, mastHeight, 8), mastMaterial);
         foreMast.position.set(0, 40, 92);
         foreMast.castShadow = true;
         group.add(foreMast);
+        addMastGuideWires(foreMast.position.y, foreMast.position.z);
 
-        const aftMast = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, 56, 8), mastMaterial);
+        const aftMast = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.5, mastHeight, 8), mastMaterial);
         aftMast.position.set(0, 36, -86);
         aftMast.castShadow = true;
         group.add(aftMast);
+        addMastGuideWires(aftMast.position.y, aftMast.position.z);
 
         group.castShadow = true;
         group.receiveShadow = true;
