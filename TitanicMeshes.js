@@ -206,39 +206,75 @@
         return mesh;
     }
 
+    function applyLocalClippingPlane(mesh, localPlane) {
+        mesh.userData.localClipPlane = localPlane.clone();
+        mesh.userData.localClipNormalMatrix = new THREE.Matrix3();
+        mesh.onBeforeRender = function updateMeshLocalClipPlane() {
+            const sourcePlane = this.userData.localClipPlane;
+            const normalMatrix = this.userData.localClipNormalMatrix;
+            if (!(sourcePlane instanceof THREE.Plane) || !(normalMatrix instanceof THREE.Matrix3)) {
+                return;
+            }
+
+            normalMatrix.getNormalMatrix(this.matrixWorld);
+            const materials = Array.isArray(this.material) ? this.material : [this.material];
+            for (const material of materials) {
+                if (!material || !material.clippingPlanes || material.clippingPlanes.length === 0) {
+                    continue;
+                }
+                material.clippingPlanes[0]
+                    .copy(sourcePlane)
+                    .applyMatrix4(this.matrixWorld, normalMatrix);
+            }
+        };
+    }
+
     function createTitanicIntactMesh() {
         const group = new THREE.Group();
 
-        const hullMaterial = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.45, roughness: 0.55 });
-        const lowerHullMaterial = new THREE.MeshStandardMaterial({ color: 0xb63a36, metalness: 0.25, roughness: 0.7 });
+        const hullPlacementY = 11.1;
+        const paintSplitEpsilon = 0.02;
+        // Keep paint separation fixed to hull space so it stays stable while sinking.
+        const hullPaintSplitY = -3.9;
+        const upperHullMaterial = new THREE.MeshStandardMaterial({
+            color: 0x111111,
+            metalness: 0.45,
+            roughness: 0.55,
+            clippingPlanes: [new THREE.Plane()],
+            clipShadows: true
+        });
+        const lowerHullMaterial = new THREE.MeshStandardMaterial({
+            color: 0xb63a36,
+            metalness: 0.25,
+            roughness: 0.7,
+            clippingPlanes: [new THREE.Plane()],
+            clipShadows: true
+        });
         const whitePaintMaterial = new THREE.MeshStandardMaterial({ color: 0xf1efe9, metalness: 0.15, roughness: 0.8 });
         const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x9f8660, metalness: 0.1, roughness: 0.85 });
 
-        const hull = markBreakMode(new THREE.Mesh(createHullGeometry({
+        const hullGeometry = createHullGeometry({
             sternStart: 0.1,
             sternRound: true,
             sternRoundExponent: 0.95
-        }), hullMaterial), 'split');
-        hull.position.y = 11.1;
+        });
+
+        const hull = markBreakMode(new THREE.Mesh(hullGeometry, upperHullMaterial), 'split');
+        applyLocalClippingPlane(
+            hull,
+            new THREE.Plane(new THREE.Vector3(0, 1, 0), -hullPaintSplitY + paintSplitEpsilon)
+        );
+        hull.position.y = hullPlacementY;
         hull.castShadow = true;
         hull.receiveShadow = true;
         group.add(hull);
 
-        const lowerHull = markBreakMode(new THREE.Mesh(createHullGeometry({
-            length: 222,
-            beam: 12.2,
-            draft: 9.4,
-            bowSharpness: 1.75,
-            sternSharpness: 2.8,
-            sternWidth: 0.35,
-            bowRise: 1.2,
-            sternRise: 0.45,
-            bowStart: 0.74,
-            sternStart: 0.1,
-            sternRound: true,
-            sternRoundExponent: 0.95
-        }), lowerHullMaterial), 'split');
-        lowerHull.position.y = 8.45;
+        const lowerHull = markBreakMode(new THREE.Mesh(hullGeometry, lowerHullMaterial), 'split');
+        applyLocalClippingPlane(
+            lowerHull,
+            new THREE.Plane(new THREE.Vector3(0, -1, 0), hullPaintSplitY + paintSplitEpsilon)
+        );
+        lowerHull.position.y = hullPlacementY;
         lowerHull.castShadow = true;
         lowerHull.receiveShadow = true;
         group.add(lowerHull);

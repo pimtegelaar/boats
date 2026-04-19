@@ -25,6 +25,7 @@ scene.background = new THREE.Color(SKY_ENV_COLOR); // Sky blue
 scene.fog = new THREE.Fog(SKY_ENV_COLOR, FOG_NEAR_DISTANCE, FOG_FAR_DISTANCE);
 
 const oceanFloorY = -260;
+const shipBaselineDraftY = -7.2;
 
 // Camera
 const camera = new THREE.PerspectiveCamera(
@@ -491,7 +492,7 @@ function createIcebergField(options = {}) {
 const icebergField = createIcebergField();
 
 const shipSplitZ = -8;
-const shipBreakSeamInset = 0.55;
+const shipBreakSeamInset = 0;
 const shipSplitDrift = {
     foreZSpeed: 3.1,
     aftZSpeed: 2.2,
@@ -521,6 +522,15 @@ function copyMeshTransform(source, target) {
     target.scale.copy(source.scale);
     target.castShadow = source.castShadow;
     target.receiveShadow = source.receiveShadow;
+    target.onBeforeRender = source.onBeforeRender;
+    target.onAfterRender = source.onAfterRender;
+    target.userData = { ...source.userData };
+    if (source.userData.localClipPlane instanceof THREE.Plane) {
+        target.userData.localClipPlane = source.userData.localClipPlane.clone();
+    }
+    if (source.userData.localClipNormalMatrix instanceof THREE.Matrix3) {
+        target.userData.localClipNormalMatrix = new THREE.Matrix3();
+    }
 }
 
 function splitGeometryByZ(sourceGeometry, splitZ) {
@@ -584,37 +594,6 @@ function splitGeometryByZ(sourceGeometry, splitZ) {
     };
 }
 
-function createBreakCap(isForeHalf, splitZ) {
-    const capGroup = new THREE.Group();
-    const capMaterial = new THREE.MeshStandardMaterial({
-        color: 0x342922,
-        roughness: 1,
-        metalness: 0.05
-    });
-    const zOffset = isForeHalf ? 0.5 : -0.5;
-
-    const mainCap = new THREE.Mesh(new THREE.BoxGeometry(14, 18, 1.1), capMaterial);
-    mainCap.position.set(0, 9, splitZ + zOffset);
-    mainCap.rotation.y = isForeHalf ? 0.025 : -0.025;
-    mainCap.castShadow = true;
-    mainCap.receiveShadow = true;
-    capGroup.add(mainCap);
-
-    const upperCap = new THREE.Mesh(new THREE.BoxGeometry(7.8, 5.4, 0.9), capMaterial.clone());
-    upperCap.position.set(isForeHalf ? -1.15 : 1.15, 16.1, splitZ + zOffset * 0.82);
-    upperCap.rotation.set(0.08, isForeHalf ? -0.1 : 0.1, isForeHalf ? -0.04 : 0.04);
-    upperCap.castShadow = true;
-    capGroup.add(upperCap);
-
-    const keelCap = new THREE.Mesh(new THREE.BoxGeometry(5.5, 5.8, 0.95), capMaterial.clone());
-    keelCap.position.set(isForeHalf ? 0.95 : -0.95, 1.1, splitZ + zOffset * 0.72);
-    keelCap.rotation.set(-0.09, isForeHalf ? 0.07 : -0.07, 0);
-    keelCap.castShadow = true;
-    capGroup.add(keelCap);
-
-    return capGroup;
-}
-
 function createBrokenHalves(sourceModel, splitZ) {
     const brokenGroup = new THREE.Group();
     const foreHalf = new THREE.Group();
@@ -648,8 +627,6 @@ function createBrokenHalves(sourceModel, splitZ) {
         }
     });
 
-    foreHalf.add(createBreakCap(true, splitZ));
-    aftHalf.add(createBreakCap(false, splitZ));
 
     brokenGroup.add(foreHalf);
     brokenGroup.add(aftHalf);
@@ -1112,7 +1089,7 @@ function createTitanic() {
 }
 
 const titanic = createTitanic();
-titanic.position.set(0, 0, 0);
+titanic.position.set(0, shipBaselineDraftY, 0);
 
 // Input handling
 const keys = {};
@@ -1413,7 +1390,7 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // Navigation variables
-const shipPosition = new THREE.Vector3(0, 0, 0);
+const shipPosition = new THREE.Vector3(0, shipBaselineDraftY, 0);
 const moveSpeed = 0.5;
 const mobileMoveSpeedMultiplier = 1.8;
 const rotationSpeed = 0.003;
@@ -1560,7 +1537,7 @@ function animate() {
     const seaBoundary = 2000;
     shipPosition.x = Math.max(-seaBoundary, Math.min(seaBoundary, shipPosition.x));
     shipPosition.z = Math.max(-seaBoundary, Math.min(seaBoundary, shipPosition.z));
-    shipPosition.y = Math.max(0, shipPosition.y);
+    shipPosition.y = Math.max(shipBaselineDraftY, shipPosition.y);
 
     // Update info display
     const shipStatusLabels = {
