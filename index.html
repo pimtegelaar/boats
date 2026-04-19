@@ -40,23 +40,15 @@
 
         #info {
             position: absolute;
-            top: 20px;
+            bottom: 20px;
             left: 20px;
             color: #fff;
             background: rgba(0, 0, 0, 0.7);
-            padding: 20px;
+            padding: 10px 12px;
             border-radius: 8px;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        #info h2 {
-            margin-bottom: 10px;
-            font-size: 18px;
-        }
-
-        #info p {
-            margin: 5px 0;
+            font-size: 13px;
+            line-height: 1.4;
+            z-index: 90;
         }
 
         #top-right-controls {
@@ -69,17 +61,6 @@
             gap: 12px;
             max-width: calc(100vw - 32px);
             z-index: 120;
-        }
-
-        #build-version {
-            color: #d8f2ff;
-            background: rgba(0, 0, 0, 0.65);
-            border: 1px solid rgba(216, 242, 255, 0.3);
-            border-radius: 6px;
-            padding: 6px 10px;
-            font-size: 12px;
-            font-family: monospace;
-            white-space: nowrap;
         }
 
         #fullscreen-btn {
@@ -98,14 +79,6 @@
         #fullscreen-btn:hover {
             background: rgba(0, 0, 0, 0.8);
             border-color: rgba(216, 242, 255, 0.6);
-        }
-
-        .key {
-            background: rgba(255, 255, 255, 0.2);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-family: monospace;
-            font-weight: bold;
         }
 
         /* ── Joystick ── */
@@ -143,9 +116,10 @@
             transition: transform 0.05s;
         }
 
-        /* Hide control instructions on touch-primary devices to preserve screen space. */
         @media (hover: none) and (pointer: coarse) {
-            #control-instructions { display: none; }
+            #info {
+                bottom: 176px;
+            }
         }
 
         @media (max-width: 640px) {
@@ -159,28 +133,10 @@
 <body>
     <div id="top-right-controls">
         <button id="fullscreen-btn" title="Toggle fullscreen (F)">⛶ Fullscreen</button>
-        <div id="build-version">Build v2026.04.19-full-screen5</div>
     </div>
 
     <div id="info">
-        <h2>🚢 Titanic Navigator</h2>
-        <div id="control-instructions">
-            <p>Controls:</p>
-            <div id="keyboard-controls">
-                <p><span class="key">W</span> - Move Forward</p>
-                <p><span class="key">A</span> - Strafe Left</p>
-                <p><span class="key">S</span> - Move Backward</p>
-                <p><span class="key">D</span> - Strafe Right</p>
-                <p><span class="key">SPACE</span> - Move Up</p>
-                <p><span class="key">CTRL</span> - Move Down</p>
-            </div>
-            <p><span class="key">LMB + Drag</span> - Look Around</p>
-            <p><span class="key">Wheel</span> - Zoom In/Out</p>
-            <p><span class="key">RMB + Drag</span> - Pan Camera</p>
-            <p id="touch-hint" style="display:none">👆 Drag circle to steer | Drag screen to look | Pinch to zoom</p>
-            <hr style="margin: 10px 0; opacity: 0.3;">
-        </div>
-        <p id="position">Position: (0, 0, 0)</p>
+        <p id="position">Position: (0, 0, 0) | Status: Cruising</p>
     </div>
 
     <!-- Virtual joystick (shown on touch devices) -->
@@ -211,9 +167,9 @@
 
         function updateFullscreenButtonText() {
             if (isFullscreenActive()) {
-                fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+                fullscreenBtn.textContent = '⛶';
             } else {
-                fullscreenBtn.textContent = '⛶ Fullscreen';
+                fullscreenBtn.textContent = '⛶';
             }
         }
 
@@ -243,7 +199,7 @@
             el.dataset.cssFs = '1';
             // Overlay the whole viewport
             document.body.style.cssText += ';position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;overflow:hidden!important;';
-            fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+            fullscreenBtn.textContent = '⛶';
             fullscreenBtn.dataset.cssFs = '1';
             showToast('⚠ True fullscreen not supported — using fullscreen mode instead', 3500);
         }
@@ -251,7 +207,7 @@
         function exitCssFullscreen() {
             delete document.documentElement.dataset.cssFs;
             document.body.style.cssText = '';
-            fullscreenBtn.textContent = '⛶ Fullscreen';
+            fullscreenBtn.textContent = '⛶';
             delete fullscreenBtn.dataset.cssFs;
         }
 

@@ -31,10 +31,6 @@ renderer.localClippingEnabled = true;
 document.body.appendChild(renderer.domElement);
 
 const BUILD_VERSION = 'v2026.04.19-full-screen5';
-const buildVersionElement = document.getElementById('build-version');
-if (buildVersionElement) {
-    buildVersionElement.textContent = `Build ${BUILD_VERSION}`;
-}
 
 const ENABLE_TOUCH_DEBUG = true;
 let touchDebugElement = null;
@@ -1399,14 +1395,21 @@ function getCameraTouches(touchList) {
     return touches;
 }
 
-function updateTouchDebug(extraMessage = '') {
+let _lastShipStatusLine = '';
+
+function updateTouchDebug(extraMessage = '', shipStatusLine = '') {
     if (!touchDebugElement) {
         return;
     }
 
+    if (shipStatusLine) {
+        _lastShipStatusLine = shipStatusLine;
+    }
+
     const pinchText = lastPinchDistance > 0 ? lastPinchDistance.toFixed(1) : '-';
     touchDebugElement.textContent =
-        `touch dbg\n` +
+        `${_lastShipStatusLine}\n` +
+        `─────────────────\n` +
         `build: ${BUILD_VERSION}\n` +
         `all touches: ${debugTouchCount}\n` +
         `cam touches: ${debugCameraTouchCount}\n` +
@@ -1750,14 +1753,15 @@ function animate() {
         splitSinking: 'Breaking apart',
         resting: 'On the ocean floor'
     };
-    const positionText = `Position: (${shipPosition.x.toFixed(1)}, ${shipPosition.y.toFixed(1)}, ${shipPosition.z.toFixed(1)}) | Status: ${shipStatusLabels[titanic.userData.damageState.phase]}`;
+    const shipStatusText = shipStatusLabels[titanic.userData.damageState.phase];
+    const positionText = `Pos: (${shipPosition.x.toFixed(1)}, ${shipPosition.y.toFixed(1)}, ${shipPosition.z.toFixed(1)})\nStatus: ${shipStatusText}`;
     const posElement = document.getElementById('position');
     if (posElement) {
         posElement.textContent = positionText;
     }
 
     renderer.render(scene, camera);
-    updateTouchDebug();
+    updateTouchDebug('', positionText);
 }
 
 animate();
