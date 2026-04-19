@@ -414,6 +414,63 @@
         return geometry;
     }
 
+    function createEndWindowGeometry(panels) {
+        const vertices = [];
+        const uvs = [];
+        const indices = [];
+
+        for (const panel of panels) {
+            const {
+                x = 0,
+                y = 0,
+                z = 0,
+                halfHeight = 0.1,
+                halfWidth = 0.2,
+                normalSign = 1
+            } = panel || {};
+
+            const xMin = x - halfWidth;
+            const xMax = x + halfWidth;
+            const yMin = y - halfHeight;
+            const yMax = y + halfHeight;
+            const base = vertices.length / 3;
+
+            if (normalSign >= 0) {
+                vertices.push(
+                    xMin, yMin, z,
+                    xMax, yMin, z,
+                    xMin, yMax, z,
+                    xMax, yMax, z
+                );
+                indices.push(base, base + 1, base + 2);
+                indices.push(base + 1, base + 3, base + 2);
+            } else {
+                vertices.push(
+                    xMin, yMin, z,
+                    xMin, yMax, z,
+                    xMax, yMin, z,
+                    xMax, yMax, z
+                );
+                indices.push(base, base + 1, base + 2);
+                indices.push(base + 2, base + 1, base + 3);
+            }
+
+            uvs.push(
+                0, 0,
+                1, 0,
+                0, 1,
+                1, 1
+            );
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(indices);
+        geometry.computeVertexNormals();
+        return geometry;
+    }
+
     function markBreakMode(mesh, breakMode) {
         mesh.userData.breakMode = breakMode;
         return mesh;
@@ -583,8 +640,9 @@
         mainDeck.receiveShadow = true;
         group.add(mainDeck);
 
-        const superstructureLength = 132;
+        const superstructureLength = 120;
         const superstructureDeckOverlap = 0.12;
+        const superstructureHalfWidth = getHullTopHalfWidthAtT(superstructureDeckReferenceT, hullGeometryOptions);
         const superstructureY = hullPlacementY
             + getHullSheerAtT(superstructureDeckReferenceT, hullGeometryOptions)
             - mainDeckSeatInset
@@ -593,19 +651,19 @@
             - superstructureDeckOverlap;
         const superstructure = markBreakMode(new THREE.Mesh(createTaperedSlabGeometry({
             length: superstructureLength,
-            centerWidth: 12.8,
-            bowWidth: 12.8,
-            sternWidth: 12.8,
+            centerWidth: superstructureHalfWidth * 2,
+            bowWidth: superstructureHalfWidth * 2,
+            sternWidth: superstructureHalfWidth * 2,
             thickness: superstructureHeight,
             stations: 72,
             halfWidthAtT() {
-                return 6.4; // constant half-width
+                return superstructureHalfWidth;
             },
             centerYAtT() {
                 return 0; // constant height, positioned via mesh.position
             }
         }), whitePaintMaterial), 'split');
-        superstructure.position.set(0, superstructureY, 3);
+        superstructure.position.set(0, superstructureY, -1);
         superstructure.castShadow = true;
         group.add(superstructure);
 
@@ -635,7 +693,7 @@
         const superstructureWindowRows = [-1.35, -0.15, 1.05].map((row) => row * superstructureWindowRowScale);
         for (let z = -58; z <= 58; z += 3.2) {
             const localZ = z + superstructure.position.z;
-            const localX = 6.4 + 0.05;
+            const localX = superstructureHalfWidth + 0.05;
             for (const rowOffset of superstructureWindowRows) {
                 const y = superstructureY + rowOffset;
                 superstructureWindowPanels.push({ x: localX, y, z: localZ, halfHeight: 0.15, halfWidth: 0.46, normalSign: 1 });
@@ -648,6 +706,44 @@
             'split'
         );
         group.add(superstructureWindows);
+
+        const superstructureEndWindowPanels = [];
+        const superstructureEndWindowInset = 1.7;
+        const superstructureEndWindowSpacing = 2.9;
+        const superstructureEndWindowHalfWidth = 0.5;
+        const frontWindowZ = superstructure.position.z + superstructureLength * 0.5 + 0.05;
+        const aftWindowZ = superstructure.position.z - superstructureLength * 0.5 - 0.05;
+        const superstructureEndWindowHalfSpan = Math.max(0.8, superstructureHalfWidth - superstructureEndWindowInset);
+        // Build a mirrored column layout so end windows stay centered on the superstructure.
+        const superstructureEndWindowHalfColumns = Math.floor(superstructureEndWindowHalfSpan / superstructureEndWindowSpacing);
+        for (let column = -superstructureEndWindowHalfColumns; column <= superstructureEndWindowHalfColumns; column++) {
+            const x = column * superstructureEndWindowSpacing;
+            for (const rowOffset of superstructureWindowRows) {
+                const y = superstructureY + rowOffset;
+                superstructureEndWindowPanels.push({
+                    x,
+                    y,
+                    z: frontWindowZ,
+                    halfHeight: 0.15,
+                    halfWidth: superstructureEndWindowHalfWidth,
+                    normalSign: 1
+                });
+                superstructureEndWindowPanels.push({
+                    x,
+                    y,
+                    z: aftWindowZ,
+                    halfHeight: 0.15,
+                    halfWidth: superstructureEndWindowHalfWidth,
+                    normalSign: -1
+                });
+            }
+        }
+
+        const superstructureEndWindows = markBreakMode(
+            new THREE.Mesh(createEndWindowGeometry(superstructureEndWindowPanels), windowMaterial),
+            'split'
+        );
+        group.add(superstructureEndWindows);
 
         const funnelPositions = [50, 20, -10, -40];
         const funnelRake = -0.09;
