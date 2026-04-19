@@ -9,8 +9,16 @@ if ('caches' in window) {
 
 // Scene setup
 const scene = new THREE.Scene();
-const SKY_ENV_COLOR = 0x87ceeb;
-const UNDERWATER_ENV_COLOR = 0x021826;
+const WATER_COLOR_PALETTE = {
+    skyEnv: 0x87ceeb,
+    underwaterEnv: 0x144f7d,
+    seaSurfaceAbove: 0x1a8cbe,
+    seaSurfaceUnderwater: 0x6fc0df,
+    seaEmissiveAbove: 0x000000,
+    seaEmissiveUnderwater: 0x3f7fa1
+};
+const SKY_ENV_COLOR = WATER_COLOR_PALETTE.skyEnv;
+const UNDERWATER_ENV_COLOR = WATER_COLOR_PALETTE.underwaterEnv;
 const FOG_NEAR_DISTANCE = 100;
 const FOG_FAR_DISTANCE = 2000;
 scene.background = new THREE.Color(SKY_ENV_COLOR); // Sky blue
@@ -229,10 +237,43 @@ function createSea() {
 
 const sea = createSea();
 
+const seaSurfaceAppearance = {
+    aboveColor: new THREE.Color(WATER_COLOR_PALETTE.seaSurfaceAbove),
+    underwaterColor: new THREE.Color(WATER_COLOR_PALETTE.seaSurfaceUnderwater),
+    aboveEmissive: new THREE.Color(WATER_COLOR_PALETTE.seaEmissiveAbove),
+    underwaterEmissive: new THREE.Color(WATER_COLOR_PALETTE.seaEmissiveUnderwater),
+    aboveEmissiveIntensity: 0,
+    underwaterEmissiveIntensity: 0.34
+};
+let isSeaUnderwaterLookActive = null;
+
 function anchorSeaToFocus(seaMesh, focusPoint) {
     // Continuous tracking avoids visible jumps from coarse recenter snapping.
     seaMesh.position.x = focusPoint.x;
     seaMesh.position.z = focusPoint.z;
+}
+
+function updateSeaSurfaceAppearance(isUnderwater) {
+    if (isSeaUnderwaterLookActive === isUnderwater) {
+        return;
+    }
+
+    const seaMaterial = sea.material;
+    if (!seaMaterial || !seaMaterial.color || !seaMaterial.emissive) {
+        return;
+    }
+
+    if (isUnderwater) {
+        seaMaterial.color.copy(seaSurfaceAppearance.underwaterColor);
+        seaMaterial.emissive.copy(seaSurfaceAppearance.underwaterEmissive);
+        seaMaterial.emissiveIntensity = seaSurfaceAppearance.underwaterEmissiveIntensity;
+    } else {
+        seaMaterial.color.copy(seaSurfaceAppearance.aboveColor);
+        seaMaterial.emissive.copy(seaSurfaceAppearance.aboveEmissive);
+        seaMaterial.emissiveIntensity = seaSurfaceAppearance.aboveEmissiveIntensity;
+    }
+
+    isSeaUnderwaterLookActive = isUnderwater;
 }
 
 function createOceanFloor() {
@@ -1743,13 +1784,15 @@ function animate() {
     camera.lookAt(smoothedLookAtPoint);
 
     // Match the environment color to whether the camera is above or below the waterline.
-    const envColor = camera.position.y < 0 ? UNDERWATER_ENV_COLOR : SKY_ENV_COLOR;
+    const isUnderwater = camera.position.y < 0;
+    const envColor = isUnderwater ? UNDERWATER_ENV_COLOR : SKY_ENV_COLOR;
     if (scene.background.getHex() !== envColor) {
         scene.background.setHex(envColor);
     }
     if (scene.fog && scene.fog.color.getHex() !== envColor) {
         scene.fog.color.setHex(envColor);
     }
+    updateSeaSurfaceAppearance(isUnderwater);
 
 
     // Clamp position to sea boundaries
