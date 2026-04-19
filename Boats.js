@@ -30,7 +30,7 @@ renderer.shadowMap.enabled = true;
 renderer.localClippingEnabled = true;
 document.body.appendChild(renderer.domElement);
 
-const BUILD_VERSION = 'v2026.04.19-full-screen4';
+const BUILD_VERSION = 'v2026.04.19-full-screen5';
 const buildVersionElement = document.getElementById('build-version');
 if (buildVersionElement) {
     buildVersionElement.textContent = `Build ${BUILD_VERSION}`;
@@ -1462,6 +1462,13 @@ function syncTouchCameraState(activeTouches) {
 }
 
 window.addEventListener('touchstart', (e) => {
+    // Don't intercept touches on UI elements (buttons, links, etc.) — doing so
+    // blocks their click events on Android.
+    if (e.target && e.target.closest('button, a, input, select, textarea, [role="button"]')) {
+        updateTouchDebug('evt: start (ui element)');
+        return;
+    }
+
     const cameraTouches = getCameraTouches(e.touches);
     debugTouchCount = e.touches.length;
     debugCameraTouchCount = cameraTouches.length;
