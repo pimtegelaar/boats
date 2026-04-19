@@ -9,8 +9,12 @@ if ('caches' in window) {
 
 // Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // Sky blue
-scene.fog = new THREE.Fog(0x87ceeb, 1000, 5000);
+const SKY_ENV_COLOR = 0x87ceeb;
+const UNDERWATER_ENV_COLOR = 0x021826;
+const FOG_NEAR_DISTANCE = 100;
+const FOG_FAR_DISTANCE = 2000;
+scene.background = new THREE.Color(SKY_ENV_COLOR); // Sky blue
+scene.fog = new THREE.Fog(SKY_ENV_COLOR, FOG_NEAR_DISTANCE, FOG_FAR_DISTANCE);
 
 const oceanFloorY = -260;
 
@@ -1737,6 +1741,15 @@ function animate() {
 
     // Make camera look at the ship
     camera.lookAt(smoothedLookAtPoint);
+
+    // Match the environment color to whether the camera is above or below the waterline.
+    const envColor = camera.position.y < 0 ? UNDERWATER_ENV_COLOR : SKY_ENV_COLOR;
+    if (scene.background.getHex() !== envColor) {
+        scene.background.setHex(envColor);
+    }
+    if (scene.fog && scene.fog.color.getHex() !== envColor) {
+        scene.fog.color.setHex(envColor);
+    }
 
 
     // Clamp position to sea boundaries
