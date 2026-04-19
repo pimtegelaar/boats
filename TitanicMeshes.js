@@ -28,17 +28,19 @@
     function createHullGeometry(options) {
         const {
             length = 224,
-            beam = 11.6,
+            beam = 12.6,
             draft = 11.0,
             stations = 72,
             sectionSegments = 28,
-            bowSharpness = 2.2,
+            bowSharpness = 1.85,
             sternSharpness = 3.1,
-            sternWidth = 0.34,
+            sternWidth = 0.32,
             bowRise = 2.2,
             sternRise = 0.9,
-            bowStart = 0.58,
-            sternStart = 0.22
+            bowStart = 0.76,
+            sternStart = 0.20,
+            sternRound = false,
+            sternRoundExponent = 1.0
         } = options || {};
 
         const vertices = [];
@@ -53,9 +55,13 @@
             const bowT = THREE.MathUtils.clamp((t - bowStart) / (1 - bowStart), 0, 1);
             const sternT = THREE.MathUtils.clamp((sternStart - t) / sternStart, 0, 1);
             const bowFactor = 1 - Math.pow(bowT, bowSharpness);
-            const sternFactor = sternWidth + (1 - sternWidth) * (1 - Math.pow(sternT, sternSharpness));
+            let sternFactor = sternWidth + (1 - sternWidth) * (1 - Math.pow(sternT, sternSharpness));
+            if (sternRound && t < sternStart) {
+                const sternProgress = THREE.MathUtils.clamp(t / Math.max(sternStart, 0.0001), 0, 1);
+                sternFactor = Math.pow(Math.sin(sternProgress * Math.PI * 0.5), sternRoundExponent);
+            }
             const midFullness = 1 - 0.05 * Math.pow((t - 0.5) / 0.5, 4);
-            const halfBeam = Math.max(0.08, beam * midFullness * bowFactor * sternFactor);
+            const halfBeam = Math.max(0, beam * midFullness * bowFactor * sternFactor);
             const draftScale = 0.95 + 0.05 * Math.sin(Math.PI * t);
             const sheer = 0.25 + bowRise * Math.pow(t, 2.5) + sternRise * Math.pow(1 - t, 2.1);
 
@@ -115,7 +121,9 @@
             bowStart = 0.66,
             sternStart = 0.30,
             bowExponent = 1.5,
-            sternExponent = 1.2
+            sternExponent = 1.2,
+            sternRound = false,
+            sternRoundExponent = 1.0
         } = options || {};
 
         const vertices = [];
@@ -136,8 +144,15 @@
                 const bowT = (t - bowStart) / (1 - bowStart);
                 halfWidth = THREE.MathUtils.lerp(centerHalf, bowHalf, Math.pow(bowT, bowExponent));
             } else if (t < sternStart) {
-                const sternT = (sternStart - t) / sternStart;
-                halfWidth = THREE.MathUtils.lerp(centerHalf, sternHalf, Math.pow(sternT, sternExponent));
+                if (sternRound) {
+                    // Rounded stern profile: width eases to zero at the aft tip instead of a flat transom.
+                    const sternProgress = THREE.MathUtils.clamp(t / Math.max(sternStart, 0.0001), 0, 1);
+                    const sternCurve = Math.pow(Math.sin(sternProgress * Math.PI * 0.5), sternRoundExponent);
+                    halfWidth = centerHalf * sternCurve;
+                } else {
+                    const sternT = (sternStart - t) / sternStart;
+                    halfWidth = THREE.MathUtils.lerp(centerHalf, sternHalf, Math.pow(sternT, sternExponent));
+                }
             }
 
             vertices.push(-halfWidth, halfThickness, z);
@@ -193,7 +208,10 @@
         const whitePaintMaterial = new THREE.MeshStandardMaterial({ color: 0xf1efe9, metalness: 0.15, roughness: 0.8 });
         const deckMaterial = new THREE.MeshStandardMaterial({ color: 0x9f8660, metalness: 0.1, roughness: 0.85 });
 
-        const hull = markBreakMode(new THREE.Mesh(createHullGeometry(), hullMaterial), 'split');
+        const hull = markBreakMode(new THREE.Mesh(createHullGeometry({
+            sternRound: true,
+            sternRoundExponent: 0.95
+        }), hullMaterial), 'split');
         hull.position.y = 11.1;
         hull.castShadow = true;
         hull.receiveShadow = true;
@@ -201,15 +219,17 @@
 
         const lowerHull = markBreakMode(new THREE.Mesh(createHullGeometry({
             length: 222,
-            beam: 11.2,
+            beam: 12.2,
             draft: 9.4,
-            bowSharpness: 2.0,
+            bowSharpness: 1.75,
             sternSharpness: 2.8,
-            sternWidth: 0.38,
+            sternWidth: 0.35,
             bowRise: 1.2,
             sternRise: 0.45,
-            bowStart: 0.56,
-            sternStart: 0.24
+            bowStart: 0.74,
+            sternStart: 0.20,
+            sternRound: true,
+            sternRoundExponent: 0.95
         }), lowerHullMaterial), 'split');
         lowerHull.position.y = 8.45;
         lowerHull.castShadow = true;
@@ -227,7 +247,9 @@
             bowStart: 0.57,
             sternStart: 0.24,
             bowExponent: 0.95,
-            sternExponent: 1.8
+            sternExponent: 1.8,
+            sternRound: true,
+            sternRoundExponent: 0.95
         }), deckMaterial), 'split');
         mainDeck.position.y = mainDeckY;
         mainDeck.castShadow = true;
@@ -243,7 +265,9 @@
             bowStart: 0.57,
             sternStart: 0.24,
             bowExponent: 0.9,
-            sternExponent: 1.85
+            sternExponent: 1.85,
+            sternRound: true,
+            sternRoundExponent: 0.95
         }), whitePaintMaterial), 'split');
         sheerStripe.position.y = 13.4;
         sheerStripe.castShadow = true;
@@ -267,7 +291,7 @@
         const funnelTopHeight = 5;
         const funnelCapOverlap = 0.15;
         const topCenterOffset = (funnelBodyHeight + funnelTopHeight) * 0.5 - funnelCapOverlap;
-        const funnelBodyMaterial = new THREE.MeshStandardMaterial({ color: 0xcda563, metalness: 0.2, roughness: 0.75 });
+        const funnelBodyMaterial = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 0.2, roughness: 0.75 });
         const funnelTopMaterial = new THREE.MeshStandardMaterial({ color: 0x1f1f1f, metalness: 0.3, roughness: 0.6 });
 
         for (const z of funnelPositions) {

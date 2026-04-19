@@ -1037,7 +1037,42 @@ function createTitanic() {
         throw new Error('BoatMeshes.createBoatMesh is not available. Ensure TitanicMeshes.js loads before Boats.js.');
     }
 
-    const group = window.BoatMeshes.createBoatMesh('titanic');
+    let meshType = 'titanic';
+    let group = null;
+
+    try {
+        group = window.BoatMeshes.createBoatMesh('modelMesh', {
+            chimneyColor: 0xd4af37
+        });
+        meshType = 'modelMesh';
+    } catch (modelMeshError) {
+        group = window.BoatMeshes.createBoatMesh('titanic');
+    }
+
+    if (meshType === 'modelMesh') {
+        group.rotation.x = -Math.PI / 2;
+
+        const preScaleBounds = new THREE.Box3().setFromObject(group);
+        const preScaleSize = preScaleBounds.getSize(new THREE.Vector3());
+        const targetLength = 224;
+        const uniformScale = targetLength / Math.max(preScaleSize.z, 0.001);
+        group.scale.setScalar(uniformScale);
+
+        const scaledBounds = new THREE.Box3().setFromObject(group);
+        const scaledCenter = scaledBounds.getCenter(new THREE.Vector3());
+        group.position.set(-scaledCenter.x, -scaledBounds.min.y, -scaledCenter.z);
+
+        // Preserve split animation by marking imported geometry as split-capable.
+        group.traverse((child) => {
+            if (!child.isMesh) {
+                return;
+            }
+            child.userData.breakMode = 'split';
+            child.castShadow = true;
+            child.receiveShadow = true;
+        });
+    }
+
     const root = new THREE.Group();
     const brokenGroup = createBrokenHalves(group, shipSplitZ);
 
