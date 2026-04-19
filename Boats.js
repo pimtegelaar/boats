@@ -30,7 +30,7 @@ renderer.shadowMap.enabled = true;
 renderer.localClippingEnabled = true;
 document.body.appendChild(renderer.domElement);
 
-const BUILD_VERSION = 'v2026.04.19-full-screen2';
+const BUILD_VERSION = 'v2026.04.19-full-screen3';
 const buildVersionElement = document.getElementById('build-version');
 if (buildVersionElement) {
     buildVersionElement.textContent = `Build ${BUILD_VERSION}`;

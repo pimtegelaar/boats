@@ -159,7 +159,7 @@
 <body>
     <div id="top-right-controls">
         <button id="fullscreen-btn" title="Toggle fullscreen (F)">⛶ Fullscreen</button>
-        <div id="build-version">Build v2026.04.18-full-screen2</div>
+        <div id="build-version">Build v2026.04.18-full-screen3</div>
     </div>
 
     <div id="info">
@@ -229,8 +229,34 @@
             }
         }
 
+        function showFullscreenUnsupported() {
+            const msg = document.createElement('div');
+            msg.textContent = '⚠ Full screen mode not supported by this browser';
+            msg.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.8);color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;z-index:99999;pointer-events:none;';
+            document.body.appendChild(msg);
+            setTimeout(() => msg.remove(), 3000);
+        }
+
+        function tryCssFullscreen() {
+            // CSS-based pseudo-fullscreen fallback for browsers that don't support the API
+            const c = getCanvas();
+            if (!c) { showFullscreenUnsupported(); return; }
+            c.dataset.origStyle = c.getAttribute('style') || '';
+            c.style.cssText += ';position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;z-index:9998!important;';
+            fullscreenBtn.textContent = '⛶ Exit Fullscreen';
+            fullscreenBtn.dataset.cssFs = '1';
+        }
+
+        function exitCssFullscreen() {
+            const c = getCanvas();
+            if (c) { c.setAttribute('style', c.dataset.origStyle || ''); }
+            fullscreenBtn.textContent = '⛶ Fullscreen';
+            delete fullscreenBtn.dataset.cssFs;
+        }
+
         function enterFullscreen() {
-            const element = getCanvas() || document.documentElement;
+            // Always use documentElement — canvas fullscreen is unreliable on Android
+            const element = document.documentElement;
 
             // Try standard API first
             if (element.requestFullscreen) {
@@ -247,38 +273,20 @@
 
         function tryVendorFullscreen(element) {
             if (element.webkitRequestFullscreen) {
-                try {
-                    element.webkitRequestFullscreen();
-                } catch (err) {
-                    console.warn('webkitRequestFullscreen failed:', err);
-                }
+                try { element.webkitRequestFullscreen(); return; } catch (err) { console.warn('webkitRequestFullscreen failed:', err); }
             } else if (element.mozRequestFullScreen) {
-                try {
-                    element.mozRequestFullScreen();
-                } catch (err) {
-                    console.warn('mozRequestFullScreen failed:', err);
-                }
+                try { element.mozRequestFullScreen(); return; } catch (err) { console.warn('mozRequestFullScreen failed:', err); }
             } else if (element.msRequestFullscreen) {
-                try {
-                    element.msRequestFullscreen();
-                } catch (err) {
-                    console.warn('msRequestFullscreen failed:', err);
-                }
-            } else {
-                // As last resort, try on the body or document element
-                const fallback = element === document.documentElement ? document.body : document.documentElement;
-                if (fallback && fallback.webkitRequestFullscreen) {
-                    try {
-                        fallback.webkitRequestFullscreen();
-                    } catch (err) {
-                        console.warn('Fallback fullscreen failed:', err);
-                    }
-                }
+                try { element.msRequestFullscreen(); return; } catch (err) { console.warn('msRequestFullscreen failed:', err); }
             }
+            // API not available — fall back to CSS pseudo-fullscreen
+            tryCssFullscreen();
         }
 
         function toggleFullscreen() {
-            if (isFullscreenActive()) {
+            if (fullscreenBtn.dataset.cssFs) {
+                exitCssFullscreen();
+            } else if (isFullscreenActive()) {
                 exitFullscreen();
             } else {
                 enterFullscreen();
@@ -307,6 +315,6 @@
     </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="Boats.js?v=2026.04.19.1"></script>
+    <script src="Boats.js?v=2026.04.19.2"></script>
 </body>
 </html>
