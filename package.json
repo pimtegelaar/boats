@@ -1,0 +1,12 @@
+{
+  "name": "boats-tools",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Utility scripts for generating Three.js meshes",
+  "scripts": {
+    "convert:stl": "node scripts/stl-to-threejs.js",
+    "convert:chimneys": "node scripts/split-chimney-mesh.js",
+    "test:stl-converter": "node scripts/stl-to-threejs.smoke.js"
+  }
+}
+
