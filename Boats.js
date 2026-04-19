@@ -1267,9 +1267,10 @@ function createTitanic() {
 
     // Single long superstructure block
     const superstructureHeight = 4.6;
+    const superstructureLength = 132;
     const superstructureDeckOverlap = 0.12;
     const superstructureY = mainDeckY + mainDeckThickness * 0.5 + superstructureHeight * 0.5 - superstructureDeckOverlap;
-    const superstructure = markBreakMode(new THREE.Mesh(new THREE.BoxGeometry(12.8, superstructureHeight, 168), whitePaintMaterial), 'split');
+    const superstructure = markBreakMode(new THREE.Mesh(new THREE.BoxGeometry(12.8, superstructureHeight, superstructureLength), whitePaintMaterial), 'split');
     superstructure.position.set(0, superstructureY, 3);
     superstructure.castShadow = true;
     group.add(superstructure);
