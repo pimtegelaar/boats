@@ -25,7 +25,41 @@ scene.background = new THREE.Color(SKY_ENV_COLOR); // Sky blue
 scene.fog = new THREE.Fog(SKY_ENV_COLOR, FOG_NEAR_DISTANCE, FOG_FAR_DISTANCE);
 
 const oceanFloorY = -260;
+const OCEAN_FLOOR_SIZE = 14000;
+const OCEAN_FLOOR_HEIGHT_SCALE = 13;
 const shipBaselineDraftY = -7.2;
+
+function sampleTileableFloorHeight(u, v) {
+    const x = u * Math.PI * 2;
+    const y = v * Math.PI * 2;
+
+    // Integer frequencies keep opposite edges identical, just like the water sampler.
+    const warpX = Math.sin(x * 2 + y * 1) * 0.32 + Math.cos(y * 3 - x * 2) * 0.16;
+    const warpY = Math.cos(y * 2 - x * 1) * 0.3 + Math.sin(x * 3 + y * 2) * 0.14;
+    const xx = x + warpX;
+    const yy = y + warpY;
+
+    return (
+        Math.sin(xx * 2) * 0.46 +
+        Math.cos(yy * 3) * 0.34 +
+        Math.sin((xx + yy) * 4) * 0.22 +
+        Math.cos((xx - yy) * 5) * 0.14 +
+        Math.sin((xx * 7 + yy * 6)) * 0.06
+    );
+}
+
+function getOceanFloorHeightAtWorld(x, z) {
+    if (!oceanFloor) {
+        return oceanFloorY;
+    }
+
+    const localX = x - oceanFloor.position.x;
+    // PlaneGeometry local +Y points toward world -Z after the floor's -PI/2 X-rotation.
+    const localY = -(z - oceanFloor.position.z);
+    const u = THREE.MathUtils.clamp((localX / OCEAN_FLOOR_SIZE) + 0.5, 0, 1);
+    const v = THREE.MathUtils.clamp((localY / OCEAN_FLOOR_SIZE) + 0.5, 0, 1);
+    return oceanFloor.position.y + sampleTileableFloorHeight(u, v) * OCEAN_FLOOR_HEIGHT_SCALE;
+}
 
 // Camera
 const camera = new THREE.PerspectiveCamera(
@@ -278,28 +312,9 @@ function updateSeaSurfaceAppearance(isUnderwater) {
 }
 
 function createOceanFloor() {
-    const size = 14000;
+    const size = OCEAN_FLOOR_SIZE;
     const geometry = new THREE.PlaneGeometry(size, size, 140, 140);
     const positionAttribute = geometry.getAttribute('position');
-
-    function sampleTileableFloorHeight(u, v) {
-        const x = u * Math.PI * 2;
-        const y = v * Math.PI * 2;
-
-        // Integer frequencies keep opposite edges identical, just like the water sampler.
-        const warpX = Math.sin(x * 2 + y * 1) * 0.32 + Math.cos(y * 3 - x * 2) * 0.16;
-        const warpY = Math.cos(y * 2 - x * 1) * 0.3 + Math.sin(x * 3 + y * 2) * 0.14;
-        const xx = x + warpX;
-        const yy = y + warpY;
-
-        return (
-            Math.sin(xx * 2) * 0.46 +
-            Math.cos(yy * 3) * 0.34 +
-            Math.sin((xx + yy) * 4) * 0.22 +
-            Math.cos((xx - yy) * 5) * 0.14 +
-            Math.sin((xx * 7 + yy * 6)) * 0.06
-        );
-    }
 
     for (let i = 0; i < positionAttribute.count; i++) {
         const x = positionAttribute.getX(i);
@@ -307,7 +322,7 @@ function createOceanFloor() {
         const u = (x / size) + 0.5;
         const v = (y / size) + 0.5;
         const height = sampleTileableFloorHeight(u, v);
-        positionAttribute.setZ(i, height * 13);
+        positionAttribute.setZ(i, height * OCEAN_FLOOR_HEIGHT_SCALE);
     }
     positionAttribute.needsUpdate = true;
     geometry.computeVertexNormals();
@@ -774,7 +789,7 @@ function getLowestPointWorld(object) {
 
 function captureFloorPivotAnchor(object) {
     const anchorWorld = getLowestPointWorld(object);
-    anchorWorld.y = oceanFloorY;
+    anchorWorld.y = getOceanFloorHeightAtWorld(anchorWorld.x, anchorWorld.z);
     return {
         anchorWorld,
         anchorLocal: object.worldToLocal(anchorWorld.clone())
@@ -803,18 +818,18 @@ function keepObjectAnchoredToFloorPivot(object, settleState) {
     object.updateMatrixWorld(true);
 }
 
-function getOceanFloorPenetration(object) {
-    object.updateMatrixWorld(true);
-    const bounds = new THREE.Box3().setFromObject(object);
-    return oceanFloorY - bounds.min.y;
+function getOceanFloorClearance(object) {
+    const lowestPoint = getLowestPointWorld(object);
+    const floorHeight = getOceanFloorHeightAtWorld(lowestPoint.x, lowestPoint.z);
+    return lowestPoint.y - floorHeight;
 }
 
-function snapObjectAboveOceanFloor(object, penetration) {
-    if (penetration <= 0) {
+function snapObjectAboveOceanFloor(object, clearance) {
+    if (clearance >= 0) {
         return;
     }
 
-    object.position.y += penetration;
+    object.position.y += -clearance;
     object.updateMatrixWorld(true);
 }
 
@@ -823,11 +838,11 @@ function moveAngleToward(current, target, maxDelta) {
 }
 
 function updateFloorSettle(object, settleState, deltaSeconds, fallSinkSpeed = settleState.settleSinkSpeed) {
-    const firstPenetration = getOceanFloorPenetration(object);
-    if (firstPenetration > 0) {
+    const firstClearance = getOceanFloorClearance(object);
+    if (firstClearance <= 0) {
         if (!settleState.hasTouchedFloor) {
             settleState.hasTouchedFloor = true;
-            snapObjectAboveOceanFloor(object, firstPenetration);
+            snapObjectAboveOceanFloor(object, firstClearance);
             const pivot = captureFloorPivotAnchor(object);
             settleState.anchorLocal = pivot.anchorLocal;
             settleState.anchorWorld = pivot.anchorWorld;
@@ -852,21 +867,21 @@ function updateFloorSettle(object, settleState, deltaSeconds, fallSinkSpeed = se
     keepObjectAnchoredToFloorPivot(object, settleState);
 
     // Never allow geometry to remain below the seabed while settling.
-    let penetration = getOceanFloorPenetration(object);
-    if (penetration > 0) {
-        snapObjectAboveOceanFloor(object, penetration);
+    let clearance = getOceanFloorClearance(object);
+    if (clearance < 0) {
+        snapObjectAboveOceanFloor(object, clearance);
 
         // Refresh pivot after a corrective snap so the contact patch can migrate naturally.
         const pivot = captureFloorPivotAnchor(object);
         settleState.anchorLocal = pivot.anchorLocal;
         settleState.anchorWorld = pivot.anchorWorld;
 
-        penetration = getOceanFloorPenetration(object);
+        clearance = getOceanFloorClearance(object);
     }
 
     const rotXError = Math.abs(object.rotation.x - settleState.targetRotationX);
     const rotZError = Math.abs(object.rotation.z - settleState.targetRotationZ);
-    const contactGap = Math.max(0, penetration);
+    const contactGap = Math.abs(clearance);
 
     if (rotXError <= settleState.settleThreshold && rotZError <= settleState.settleThreshold && contactGap <= 0.02) {
         settleState.restTime += deltaSeconds;
@@ -878,9 +893,9 @@ function updateFloorSettle(object, settleState, deltaSeconds, fallSinkSpeed = se
         // Lock the current near-flat orientation instead of snapping to an old target.
         settleState.targetRotationX = object.rotation.x;
         settleState.targetRotationZ = object.rotation.z;
-        const finalPenetration = getOceanFloorPenetration(object);
-        if (finalPenetration > 0) {
-            snapObjectAboveOceanFloor(object, finalPenetration);
+        const finalClearance = getOceanFloorClearance(object);
+        if (finalClearance < 0) {
+            snapObjectAboveOceanFloor(object, finalClearance);
         }
         settleState.settled = true;
     }
