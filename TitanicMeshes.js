@@ -849,9 +849,9 @@
             screw.name = xPosition < 0 ? 'screw-port' : 'screw-starboard';
             screw.userData.isPropellerScrew = true;
 
-            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 2.8, 12), screwMaterial);
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 9.0, 12), screwMaterial);
             shaft.rotation.x = Math.PI * 0.5;
-            shaft.position.z = 1.4;
+            shaft.position.z = 4.5;
             shaft.castShadow = true;
             screw.add(shaft);
 
@@ -870,12 +870,12 @@
                 screw.add(blade);
             }
 
-            screw.position.set(xPosition, 2.28, -110.2);
+            screw.position.set(xPosition, 2.28, -111.6);
             group.add(screw);
         }
 
-        createSternScrew(-4.95);
-        createSternScrew(4.95);
+        createSternScrew(-5.1);
+        createSternScrew(5.1);
 
         group.castShadow = true;
         group.receiveShadow = true;

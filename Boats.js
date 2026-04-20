@@ -1788,7 +1788,7 @@ function animate() {
         const forwardNow = shipForward.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), shipYaw);
         const signedForwardDistance = movementDelta.dot(forwardNow);
         const spinDirection = signedForwardDistance < 0 ? -1 : 1;
-        const screwSpinStep = horizontalMovementDistance * spinDirection * 2.8;
+        const screwSpinStep = horizontalMovementDistance * spinDirection * 0.2;
         updatePropellerScrews(titanic.userData.propellerScrews, screwSpinStep);
     }
 
