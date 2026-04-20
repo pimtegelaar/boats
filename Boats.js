@@ -1412,6 +1412,9 @@ titanic.position.set(0, shipBaselineDraftY, 0);
 // Input handling
 const keys = {};
 
+// Horn sound
+const hornAudio = new Audio('horn.mp3');
+
 window.addEventListener('keydown', (e) => {
     unlockImpactSound();
     keys[e.key.toLowerCase()] = true;
@@ -1419,6 +1422,14 @@ window.addEventListener('keydown', (e) => {
     // Handle special keys
     if (e.code === 'Space') keys[' '] = true;
     if (e.ctrlKey) keys['control'] = true;
+
+    // Play horn on 'h' only when the ship is above water (sailing)
+    if (e.key.toLowerCase() === 'h') {
+        if (titanic.userData.damageState.phase === 'sailing') {
+            hornAudio.currentTime = 0;
+            hornAudio.play();
+        }
+    }
 });
 
 window.addEventListener('keyup', (e) => {
