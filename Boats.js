@@ -79,6 +79,48 @@ document.body.appendChild(renderer.domElement);
 
 const BUILD_VERSION = 'v2026.04.19-full-screen5';
 
+const impactSound = new Audio('ice_breaking.mp3');
+impactSound.preload = 'auto';
+impactSound.volume = 0.85;
+let impactSoundUnlocked = false;
+
+function unlockImpactSound() {
+    if (impactSoundUnlocked) {
+        return;
+    }
+
+    const previousTime = impactSound.currentTime;
+    impactSound.muted = true;
+
+    const unlockAttempt = impactSound.play();
+    if (unlockAttempt && typeof unlockAttempt.then === 'function') {
+        unlockAttempt.then(() => {
+            impactSound.pause();
+            impactSound.currentTime = previousTime;
+            impactSound.muted = false;
+            impactSoundUnlocked = true;
+        }).catch(() => {
+            impactSound.muted = false;
+        });
+        return;
+    }
+
+    impactSound.pause();
+    impactSound.currentTime = previousTime;
+    impactSound.muted = false;
+    impactSoundUnlocked = true;
+}
+
+function playImpactSound() {
+    impactSound.currentTime = 0;
+    const playAttempt = impactSound.play();
+    if (playAttempt && typeof playAttempt.catch === 'function') {
+        playAttempt.catch((error) => {
+            console.warn('Impact sound failed to play:', error);
+        });
+    }
+}
+
 const ENABLE_TOUCH_DEBUG = true;
 let touchDebugElement = null;
 if (ENABLE_TOUCH_DEBUG) {
@@ -727,6 +769,7 @@ function triggerIcebergImpact(ship, now, iceberg) {
     damageState.phase = 'impactDelay';
     damageState.phaseStart = now;
     damageState.impactIceberg = iceberg;
+    playImpactSound();
 }
 
 function createFloorSettleState(options = {}) {
@@ -1370,6 +1413,7 @@ titanic.position.set(0, shipBaselineDraftY, 0);
 const keys = {};
 
 window.addEventListener('keydown', (e) => {
+    unlockImpactSound();
     keys[e.key.toLowerCase()] = true;
 
     // Handle special keys
@@ -1515,6 +1559,7 @@ function syncTouchCameraState(activeTouches) {
 }
 
 window.addEventListener('touchstart', (e) => {
+    unlockImpactSound();
     // Don't intercept touches on UI elements (buttons, links, etc.) — doing so
     // blocks their click events on Android.
     if (e.target && e.target.closest('button, a, input, select, textarea, [role="button"]')) {
@@ -1621,6 +1666,7 @@ window.addEventListener('touchcancel', (e) => {
 }, { passive: false });
 
 document.addEventListener('mousedown', (e) => {
+    unlockImpactSound();
     if (e.button === 0) { // Left click only
         mouseDown = true;
         document.body.style.cursor = 'none';
