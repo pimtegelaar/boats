@@ -112,6 +112,9 @@ impactSound.volume = 0.85;
 const breakingSound = new Audio('breaking.wav');
 breakingSound.preload = 'auto';
 breakingSound.volume = 0.9;
+const thudSound = new Audio('thud.wav');
+thudSound.preload = 'auto';
+thudSound.volume = 0.9;
 let impactSoundUnlocked = false;
 
 function unlockImpactSound() {
@@ -119,48 +122,30 @@ function unlockImpactSound() {
         return;
     }
 
-    const impactPreviousTime = impactSound.currentTime;
-    const breakingPreviousTime = breakingSound.currentTime;
-    impactSound.muted = true;
-    breakingSound.muted = true;
+    const sounds = [impactSound, breakingSound, thudSound];
+    const previousTimes = sounds.map((sound) => sound.currentTime);
 
-    const impactUnlockAttempt = impactSound.play();
-    const breakingUnlockAttempt = breakingSound.play();
+    for (const sound of sounds) {
+        sound.muted = true;
+    }
 
-    if (impactUnlockAttempt && typeof impactUnlockAttempt.then === 'function') {
-        impactUnlockAttempt.then(() => {
-            impactSound.pause();
-            impactSound.currentTime = impactPreviousTime;
-            impactSound.muted = false;
+    const finalizeUnlock = () => {
+        for (let i = 0; i < sounds.length; i++) {
+            const sound = sounds[i];
+            sound.pause();
+            sound.currentTime = previousTimes[i];
+            sound.muted = false;
+        }
+        impactSoundUnlocked = true;
+    };
 
-            const finalizeBreakingUnlock = () => {
-                breakingSound.pause();
-                breakingSound.currentTime = breakingPreviousTime;
-                breakingSound.muted = false;
-                impactSoundUnlocked = true;
-            };
-
-            if (breakingUnlockAttempt && typeof breakingUnlockAttempt.then === 'function') {
-                breakingUnlockAttempt.then(finalizeBreakingUnlock).catch(() => {
-                    breakingSound.muted = false;
-                });
-            } else {
-                finalizeBreakingUnlock();
-            }
-        }).catch(() => {
-            impactSound.muted = false;
-            breakingSound.muted = false;
-        });
+    const attempts = sounds.map((sound) => sound.play()).filter((attempt) => attempt && typeof attempt.then === 'function');
+    if (attempts.length > 0) {
+        Promise.allSettled(attempts).then(finalizeUnlock).catch(finalizeUnlock);
         return;
     }
 
-    impactSound.pause();
-    impactSound.currentTime = impactPreviousTime;
-    impactSound.muted = false;
-    breakingSound.pause();
-    breakingSound.currentTime = breakingPreviousTime;
-    breakingSound.muted = false;
-    impactSoundUnlocked = true;
+    finalizeUnlock();
 }
 
 function playImpactSound() {
@@ -179,6 +164,16 @@ function playBreakingSound() {
     if (playAttempt && typeof playAttempt.catch === 'function') {
         playAttempt.catch((error) => {
             console.warn('Breaking sound failed to play:', error);
+        });
+    }
+}
+
+function playThudSound() {
+    thudSound.currentTime = 0;
+    const playAttempt = thudSound.play();
+    if (playAttempt && typeof playAttempt.catch === 'function') {
+        playAttempt.catch((error) => {
+            console.warn('Thud sound failed to play:', error);
         });
     }
 }
@@ -1132,6 +1127,8 @@ function updateShipDamage(ship, now, deltaSeconds) {
                 playBreakingSound();
             }
 
+            damageState.foreThudPlayed = false;
+            damageState.aftThudPlayed = false;
             damageState.phase = 'splitSinking';
             damageState.phaseStart = now;
         }
@@ -1174,6 +1171,7 @@ function updateShipDamage(ship, now, deltaSeconds) {
         }
 
         if (!foreFloorState.settled) {
+            const foreTouchedBefore = foreFloorState.hasTouchedFloor;
             if (!foreFloorState.hasTouchedFloor) {
                 foreHalf.position.z = Math.min(currentForeMaxOffsetZ, foreHalf.position.z + foreDriftStep);
                 foreHalf.position.y -= foreSinkSpeed * deltaSeconds;
@@ -1181,9 +1179,14 @@ function updateShipDamage(ship, now, deltaSeconds) {
                 foreHalf.rotation.z = Math.max(-0.26, foreHalf.rotation.z - 0.05 * deltaSeconds);
             }
             updateFloorSettle(foreHalf, foreFloorState, deltaSeconds, foreSinkSpeed);
+            if (!foreTouchedBefore && foreFloorState.hasTouchedFloor && !damageState.foreThudPlayed) {
+                damageState.foreThudPlayed = true;
+                playThudSound();
+            }
         }
 
         if (!aftFloorState.settled) {
+            const aftTouchedBefore = aftFloorState.hasTouchedFloor;
             if (!aftFloorState.hasTouchedFloor) {
                 aftHalf.position.z = Math.max(currentAftMaxOffsetZ, aftHalf.position.z - aftDriftStep);
                 aftHalf.position.y += splitElapsed < aftRiseDuration
@@ -1193,6 +1196,10 @@ function updateShipDamage(ship, now, deltaSeconds) {
                 aftHalf.rotation.z = Math.min(0.18, aftHalf.rotation.z + 0.03 * deltaSeconds);
             }
             updateFloorSettle(aftHalf, aftFloorState, deltaSeconds, aftSinkSpeed);
+            if (!aftTouchedBefore && aftFloorState.hasTouchedFloor && !damageState.aftThudPlayed) {
+                damageState.aftThudPlayed = true;
+                playThudSound();
+            }
         }
 
         if (foreFloorState.settled && aftFloorState.settled) {
@@ -1506,6 +1513,8 @@ function createTitanic() {
         phaseStart: 0,
         impactIceberg: null,
         breakingSoundPlayed: false,
+        foreThudPlayed: false,
+        aftThudPlayed: false,
         intactFloorState: createFloorSettleState({
             targetRotationX: 0,
             targetRotationZ: 0,
