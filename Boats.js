@@ -28,6 +28,33 @@ const oceanFloorY = -260;
 const OCEAN_FLOOR_SIZE = 14000;
 const OCEAN_FLOOR_HEIGHT_SCALE = 13;
 const shipBaselineDraftY = -7.2;
+const NEW_YORK_CONFIG = Object.freeze({
+    harborCenter: new THREE.Vector3(0, 0, 1700),
+    harborRadius: 225,
+    dockBerthCenter: new THREE.Vector3(0, shipBaselineDraftY, 1660),
+    dockBerthHalfWidth: 22,
+    dockBerthHalfLength: 52,
+    dockAlignYaw: 0,
+    dockingReleaseDistance: 90
+});
+const NEW_YORK_ICE_EXCLUSION_ZONES = [
+    {
+        type: 'circle',
+        centerX: NEW_YORK_CONFIG.harborCenter.x,
+        centerZ: NEW_YORK_CONFIG.harborCenter.z,
+        radius: NEW_YORK_CONFIG.harborRadius + 70
+    },
+    {
+        type: 'rect',
+        centerX: 0,
+        halfWidth: 145,
+        minZ: 520,
+        maxZ: NEW_YORK_CONFIG.harborCenter.z + 40
+    }
+];
+const newYorkDockingState = {
+    isDocked: false
+};
 
 function sampleTileableFloorHeight(u, v) {
     const x = u * Math.PI * 2;
@@ -474,7 +501,8 @@ function createIcebergField(options = {}) {
         count = 85,
         boundary = 1800,
         spawnClearRadius = 320,
-        minSpacing = 42
+        minSpacing = 42,
+        exclusions = []
     } = options;
 
     const group = new THREE.Group();
@@ -503,6 +531,34 @@ function createIcebergField(options = {}) {
 
         // Keep the immediate starting area mostly clear for player movement.
         if (x * x + z * z < spawnClearRadius * spawnClearRadius) {
+            continue;
+        }
+
+        let blockedByExclusion = false;
+        for (const exclusion of exclusions) {
+            if (!exclusion) {
+                continue;
+            }
+
+            if (exclusion.type === 'circle') {
+                const dx = x - (exclusion.centerX || 0);
+                const dz = z - (exclusion.centerZ || 0);
+                if (dx * dx + dz * dz < (exclusion.radius || 0) * (exclusion.radius || 0)) {
+                    blockedByExclusion = true;
+                    break;
+                }
+            } else if (exclusion.type === 'rect') {
+                const centerX = exclusion.centerX || 0;
+                const halfWidth = exclusion.halfWidth || 0;
+                const minZ = exclusion.minZ || 0;
+                const maxZ = exclusion.maxZ || 0;
+                if (Math.abs(x - centerX) < halfWidth && z >= minZ && z <= maxZ) {
+                    blockedByExclusion = true;
+                    break;
+                }
+            }
+        }
+        if (blockedByExclusion) {
             continue;
         }
 
@@ -546,7 +602,15 @@ function createIcebergField(options = {}) {
     return group;
 }
 
-const icebergField = createIcebergField();
+
+// ...existing code...
+
+
+
+const icebergField = createIcebergField({ exclusions: NEW_YORK_ICE_EXCLUSION_ZONES });
+const newYorkHarbor = createNewYorkHarbor();
+const newYorkCollisionBounds = buildNewYorkCollisionBounds(newYorkHarbor);
+
 
 // Place the breakup seam between funnel 2 (z=20) and funnel 3 (z=-10).
 const shipSplitZ = 5;
@@ -742,6 +806,30 @@ function detectIcebergCollision(ship) {
             const verticalGap = Math.abs(probeWorld.y - icebergPosition.y);
             if (verticalGap <= iceberg.halfHeight + 12) {
                 return iceberg.mesh;
+            }
+        }
+    }
+
+    return null;
+}
+
+function detectNewYorkCollision(ship) {
+    ship.updateMatrixWorld(true);
+    for (const probeOffset of shipCollisionProbeOffsets) {
+        const probeWorld = ship.localToWorld(probeOffset.clone());
+        for (const structure of newYorkCollisionBounds) {
+            const structurePosition = structure.mesh.getWorldPosition(new THREE.Vector3());
+            const dx = probeWorld.x - structurePosition.x;
+            const dz = probeWorld.z - structurePosition.z;
+            const combinedRadius = shipCollisionProbeRadius + structure.radius;
+
+            if (dx * dx + dz * dz > combinedRadius * combinedRadius) {
+                continue;
+            }
+
+            const verticalGap = Math.abs(probeWorld.y - structurePosition.y);
+            if (verticalGap <= structure.halfHeight + 12) {
+                return structure.mesh;
             }
         }
     }
@@ -1741,6 +1829,8 @@ const shipRight = new THREE.Vector3(1, 0, 0);
 // Euler angles for ship rotation
 let shipYaw = 0;
 
+
+
 // Update loop
 function animate() {
     requestAnimationFrame(animate);
@@ -1789,6 +1879,7 @@ function animate() {
         }
     }
 
+
     // Update ship position and rotation
     titanic.position.copy(shipPosition);
     titanic.rotation.y = shipYaw;
@@ -1809,6 +1900,12 @@ function animate() {
         const hitIceberg = detectIcebergCollision(titanic);
         if (hitIceberg) {
             triggerIcebergImpact(titanic, now, hitIceberg);
+        }
+
+        const hitNewYork = detectNewYorkCollision(titanic);
+        if (hitNewYork) {
+            // Block movement into New York but don't cause damage
+            shipPosition.copy(previousShipPosition);
         }
     }
 
