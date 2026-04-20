@@ -109,6 +109,9 @@ const BUILD_VERSION = 'v2026.04.19-full-screen5';
 const impactSound = new Audio('ice_breaking.mp3');
 impactSound.preload = 'auto';
 impactSound.volume = 0.85;
+const breakingSound = new Audio('breaking.wav');
+breakingSound.preload = 'auto';
+breakingSound.volume = 0.9;
 let impactSoundUnlocked = false;
 
 function unlockImpactSound() {
@@ -116,25 +119,47 @@ function unlockImpactSound() {
         return;
     }
 
-    const previousTime = impactSound.currentTime;
+    const impactPreviousTime = impactSound.currentTime;
+    const breakingPreviousTime = breakingSound.currentTime;
     impactSound.muted = true;
+    breakingSound.muted = true;
 
-    const unlockAttempt = impactSound.play();
-    if (unlockAttempt && typeof unlockAttempt.then === 'function') {
-        unlockAttempt.then(() => {
+    const impactUnlockAttempt = impactSound.play();
+    const breakingUnlockAttempt = breakingSound.play();
+
+    if (impactUnlockAttempt && typeof impactUnlockAttempt.then === 'function') {
+        impactUnlockAttempt.then(() => {
             impactSound.pause();
-            impactSound.currentTime = previousTime;
+            impactSound.currentTime = impactPreviousTime;
             impactSound.muted = false;
-            impactSoundUnlocked = true;
+
+            const finalizeBreakingUnlock = () => {
+                breakingSound.pause();
+                breakingSound.currentTime = breakingPreviousTime;
+                breakingSound.muted = false;
+                impactSoundUnlocked = true;
+            };
+
+            if (breakingUnlockAttempt && typeof breakingUnlockAttempt.then === 'function') {
+                breakingUnlockAttempt.then(finalizeBreakingUnlock).catch(() => {
+                    breakingSound.muted = false;
+                });
+            } else {
+                finalizeBreakingUnlock();
+            }
         }).catch(() => {
             impactSound.muted = false;
+            breakingSound.muted = false;
         });
         return;
     }
 
     impactSound.pause();
-    impactSound.currentTime = previousTime;
+    impactSound.currentTime = impactPreviousTime;
     impactSound.muted = false;
+    breakingSound.pause();
+    breakingSound.currentTime = breakingPreviousTime;
+    breakingSound.muted = false;
     impactSoundUnlocked = true;
 }
 
@@ -144,6 +169,16 @@ function playImpactSound() {
     if (playAttempt && typeof playAttempt.catch === 'function') {
         playAttempt.catch((error) => {
             console.warn('Impact sound failed to play:', error);
+        });
+    }
+}
+
+function playBreakingSound() {
+    breakingSound.currentTime = 0;
+    const playAttempt = breakingSound.play();
+    if (playAttempt && typeof playAttempt.catch === 'function') {
+        playAttempt.catch((error) => {
+            console.warn('Breaking sound failed to play:', error);
         });
     }
 }
@@ -1092,6 +1127,11 @@ function updateShipDamage(ship, now, deltaSeconds) {
             aftFloorState.targetRotationX = -brokenGroup.rotation.x;
             aftFloorState.targetRotationZ = -brokenGroup.rotation.z;
 
+            if (!damageState.breakingSoundPlayed) {
+                damageState.breakingSoundPlayed = true;
+                playBreakingSound();
+            }
+
             damageState.phase = 'splitSinking';
             damageState.phaseStart = now;
         }
@@ -1465,6 +1505,7 @@ function createTitanic() {
         phase: 'sailing',
         phaseStart: 0,
         impactIceberg: null,
+        breakingSoundPlayed: false,
         intactFloorState: createFloorSettleState({
             targetRotationX: 0,
             targetRotationZ: 0,
