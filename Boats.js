@@ -619,6 +619,9 @@ function createBrokenHalves(sourceModel, splitZ) {
     const foreHalf = new THREE.Group();
     const aftHalf = new THREE.Group();
 
+    // Ensure all nested group transforms are baked into matrixWorld before we read them.
+    sourceModel.updateMatrixWorld(true);
+
     sourceModel.traverse((child) => {
         if (!child.isMesh) {
             return;
@@ -643,7 +646,15 @@ function createBrokenHalves(sourceModel, splitZ) {
         } else {
             const clone = child.clone();
             clone.material = cloneMaterial(child.material);
-            (child.position.z >= splitZ ? foreHalf : aftHalf).add(clone);
+
+            // Decompose the full world-space transform into the clone so that meshes
+            // nested inside sub-groups (e.g. propeller screw assemblies) land at the
+            // correct position in the half-groups, which have no parent offset.
+            child.matrixWorld.decompose(clone.position, clone.quaternion, clone.scale);
+            clone.castShadow = child.castShadow;
+            clone.receiveShadow = child.receiveShadow;
+
+            (clone.position.z >= splitZ ? foreHalf : aftHalf).add(clone);
         }
     });
 
@@ -1148,6 +1159,26 @@ function createSmokeSystem(shipRoot) {
     };
 }
 
+function collectPropellerScrews(shipRoot) {
+    const screws = [];
+    shipRoot.traverse((child) => {
+        if (child.isGroup && child.userData && child.userData.isPropellerScrew) {
+            screws.push(child);
+        }
+    });
+    return screws;
+}
+
+function updatePropellerScrews(screws, spinStep) {
+    if (!Array.isArray(screws) || screws.length === 0) {
+        return;
+    }
+
+    for (const screw of screws) {
+        screw.rotation.z += spinStep;
+    }
+}
+
 function spawnSmokeParticle(smokeSystem, emitter, sourceMesh) {
     const particles = smokeSystem.particles;
     let chosen = null;
@@ -1325,6 +1356,7 @@ function createTitanic() {
             settleSinkSpeed: 1.05
         })
     };
+    root.userData.propellerScrews = collectPropellerScrews(group);
     root.userData.smokeSystem = createSmokeSystem(root);
 
     scene.add(root);
@@ -1667,6 +1699,7 @@ function animate() {
 
     // Handle movement input while the ship is still under player control.
     const damageState = titanic.userData.damageState;
+    const previousShipPosition = shipPosition.clone();
     if (damageState.phase === 'sailing') {
         const currentMoveSpeed = getCurrentMoveSpeed();
         const forward = shipForward.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), shipYaw);
@@ -1702,6 +1735,17 @@ function animate() {
     // Update ship position and rotation
     titanic.position.copy(shipPosition);
     titanic.rotation.y = shipYaw;
+
+    const movementDelta = shipPosition.clone().sub(previousShipPosition);
+    const horizontalMovementDistance = Math.hypot(movementDelta.x, movementDelta.z);
+    if (damageState.phase === 'sailing' && horizontalMovementDistance > 0.0001) {
+        const forwardNow = shipForward.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), shipYaw);
+        const signedForwardDistance = movementDelta.dot(forwardNow);
+        const spinDirection = signedForwardDistance < 0 ? -1 : 1;
+        const screwSpinStep = horizontalMovementDistance * spinDirection * 2.8;
+        updatePropellerScrews(titanic.userData.propellerScrews, screwSpinStep);
+    }
+
     titanic.updateMatrixWorld(true);
 
     if (damageState.phase === 'sailing') {

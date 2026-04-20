@@ -782,6 +782,18 @@
 
         const mastMaterial = new THREE.MeshStandardMaterial({ color: 0x876337, metalness: 0.15, roughness: 0.8 });
         const guideWireMaterial = new THREE.MeshStandardMaterial({ color: 0x3d3d3f, metalness: 0.35, roughness: 0.65 });
+        const screwMaterial = new THREE.MeshStandardMaterial({ color: 0xb78834, metalness: 0.72, roughness: 0.36 });
+        const screwBladeShape = new THREE.Shape();
+        screwBladeShape.moveTo(0, 1.95);
+        screwBladeShape.bezierCurveTo(0.94, 1.44, 1.08, -0.2, 0, -1.08);
+        screwBladeShape.bezierCurveTo(-1.08, -0.2, -0.94, 1.44, 0, 1.95);
+        const screwBladeGeometry = new THREE.ExtrudeGeometry(screwBladeShape, {
+            depth: 0.14,
+            bevelEnabled: false,
+            curveSegments: 18
+        });
+        // Center the blade thickness around z=0 so spin remains visually balanced.
+        screwBladeGeometry.translate(0, 0, -0.07);
         const mastHeight = 56;
         const guideWireAttachRatio = 0.5;
         const guideWireInset = 0.75;
@@ -831,6 +843,39 @@
         aftMast.castShadow = true;
         group.add(aftMast);
         addMastGuideWires(aftMast.position.y, aftMast.position.z);
+
+        function createSternScrew(xPosition) {
+            const screw = new THREE.Group();
+            screw.name = xPosition < 0 ? 'screw-port' : 'screw-starboard';
+            screw.userData.isPropellerScrew = true;
+
+            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 2.8, 12), screwMaterial);
+            shaft.rotation.x = Math.PI * 0.5;
+            shaft.position.z = 1.4;
+            shaft.castShadow = true;
+            screw.add(shaft);
+
+            const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.52, 0.62, 1.1, 14), screwMaterial);
+            hub.rotation.x = Math.PI * 0.5;
+            hub.castShadow = true;
+            screw.add(hub);
+
+            for (let bladeIndex = 0; bladeIndex < 3; bladeIndex++) {
+                const blade = new THREE.Mesh(screwBladeGeometry, screwMaterial);
+                const bladeAngle = (bladeIndex / 3) * Math.PI * 2;
+                blade.position.set(Math.cos(bladeAngle) * 1.32, Math.sin(bladeAngle) * 1.32, 0);
+                blade.rotation.x = 0.22;
+                blade.rotation.z = bladeAngle - Math.PI * 0.5;
+                blade.castShadow = true;
+                screw.add(blade);
+            }
+
+            screw.position.set(xPosition, 2.28, -110.2);
+            group.add(screw);
+        }
+
+        createSternScrew(-4.95);
+        createSternScrew(4.95);
 
         group.castShadow = true;
         group.receiveShadow = true;
