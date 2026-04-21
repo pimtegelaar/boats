@@ -1,3 +1,191 @@
+// --- Disembark Button and Figures ---
+let disembarkButton = null;
+let figuresGroup = null;
+
+function isShipReadyToDisembark() {
+    // Ship's side must be close and parallel to dock
+    const dockPos = NEW_YORK_CONFIG.dockBerthCenter;
+    const dockYaw = NEW_YORK_CONFIG.dockAlignYaw;
+    const dockForward = new THREE.Vector3(Math.sin(dockYaw), 0, Math.cos(dockYaw));
+    const dockRight = new THREE.Vector3(Math.cos(dockYaw), 0, -Math.sin(dockYaw));
+    // Ship's right vector (sideways direction)
+    const shipRight = new THREE.Vector3(Math.cos(shipYaw), 0, -Math.sin(shipYaw));
+    // Parallel if ship's right is parallel to dock's forward (side along dock)
+    const parallelThreshold = 0.7; // cos(45 deg) - much less strict
+    const parallel = Math.abs(dockForward.dot(shipRight)) > parallelThreshold;
+    // Project ship position onto dock axis
+    const rel = new THREE.Vector3(shipPosition.x - dockPos.x, 0, shipPosition.z - dockPos.z);
+    const along = rel.dot(dockForward); // along dock
+    const side = rel.dot(dockRight); // perpendicular to dock (sideways)
+    const maxAlong = NEW_YORK_CONFIG.dockBerthHalfLength * 2.0; // looser
+    const maxSide = 60; // looser
+    const close = Math.abs(along) < maxAlong && Math.abs(side) < maxSide;
+    if (typeof window !== 'undefined') {
+        window._disembarkDebug = {
+            shipX: shipPosition.x,
+            shipZ: shipPosition.z,
+            dockX: dockPos.x,
+            dockZ: dockPos.z,
+            shipYaw,
+            dockYaw,
+            parallel,
+            dockForward: {x: dockForward.x, z: dockForward.z},
+            shipRight: {x: shipRight.x, z: shipRight.z},
+            dot: dockForward.dot(shipRight),
+            along,
+            side,
+            maxAlong,
+            maxSide,
+            close
+        };
+        if (close || parallel) {
+            console.log('[Disembark Debug]', window._disembarkDebug);
+        }
+    }
+    return parallel && close;
+}
+
+function showDisembarkButton() {
+    if (!disembarkButton) {
+        disembarkButton = document.createElement('button');
+        disembarkButton.textContent = 'Disembark';
+        disembarkButton.style.position = 'absolute';
+        disembarkButton.style.bottom = '40px';
+        disembarkButton.style.left = '50%';
+        disembarkButton.style.transform = 'translateX(-50%)';
+        disembarkButton.style.fontSize = '2em';
+        disembarkButton.style.padding = '0.5em 2em';
+        disembarkButton.style.zIndex = 1000;
+        disembarkButton.style.background = '#fff';
+        disembarkButton.style.color = '#222';
+        disembarkButton.style.border = '2px solid #222';
+        disembarkButton.style.borderRadius = '8px';
+        disembarkButton.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        disembarkButton.onclick = spawnDisembarkFigures;
+        document.body.appendChild(disembarkButton);
+    }
+    disembarkButton.style.display = 'block';
+}
+
+function hideDisembarkButton() {
+    if (disembarkButton) {
+        disembarkButton.style.display = 'none';
+    }
+}
+
+function spawnDisembarkFigures() {
+    // Hide the disembark button immediately
+    hideDisembarkButton();
+    window._disembarkDone = true; // Prevent button from reappearing
+
+    if (figuresGroup) {
+        scene.remove(figuresGroup);
+    }
+    figuresGroup = new THREE.Group();
+
+    // Promenade/cityPlate mesh bounds (from NewYorkMeshes.js)
+    const plateCenterX = NEW_YORK_CONFIG.harborCenter.x;
+    const plateCenterZ = NEW_YORK_CONFIG.harborCenter.z + 295;
+    const plateWidth = 2820;
+    const plateDepth = 360;
+    const plateY = 5; // cityPlate.position.y
+    const plateHeight = 10;
+    const minX = plateCenterX - plateWidth / 2 + 10;
+    const maxX = plateCenterX + plateWidth / 2 - 10;
+    const minZ = plateCenterZ - plateDepth / 2 + 10;
+    const maxZ = plateCenterZ + plateDepth / 2 - 10;
+
+    // Boat position
+    const boatX = shipPosition.x;
+    const boatZ = shipPosition.z;
+    const clusterRadius = 48; // How far from the boat figures can appear
+
+    const numFigures = 60 + Math.floor(Math.random() * 40);
+    // Store figure jump state for animation
+    window._cheeringFigures = [];
+    for (let i = 0; i < numFigures; ++i) {
+        // Random position within a circle around the boat
+        let angle = Math.random() * Math.PI * 2;
+        let radius = Math.sqrt(Math.random()) * clusterRadius;
+        let x = boatX + Math.cos(angle) * radius;
+        let z = boatZ + Math.sin(angle) * radius;
+        // Clamp to promenade bounds
+        x = Math.max(minX, Math.min(maxX, x));
+        z = Math.max(minZ, Math.min(maxZ, z));
+        const y = plateY + plateHeight / 2 + 0.1; // just above the surface
+
+        // Simple figure: cylinder (body) + sphere (head)
+        const bodyGeo = new THREE.CylinderGeometry(0.4, 0.4, 2, 8);
+        const headGeo = new THREE.SphereGeometry(0.5, 8, 8);
+        const color = new THREE.Color().setHSL(Math.random(), 0.5, 0.6);
+        const bodyMat = new THREE.MeshStandardMaterial({ color });
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xffe0b0 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        const head = new THREE.Mesh(headGeo, headMat);
+        body.position.set(x, y + 1, z);
+        head.position.set(x, y + 2, z);
+        body.castShadow = true;
+        head.castShadow = true;
+        figuresGroup.add(body);
+        figuresGroup.add(head);
+        // Store for cheering animation
+        window._cheeringFigures.push({body, head, baseY: y, jumpPhase: Math.random() * Math.PI * 2, jumpSpeed: 2 + Math.random() * 2, jumping: false});
+    }
+    scene.add(figuresGroup);
+
+    // Start camera zoom and pan to figures
+    window._cheeringCameraState = {
+        active: true,
+        startTime: performance.now(),
+        duration: 2000, // ms
+        // Focus on the center of the figures
+        targetFocus: new THREE.Vector3(plateCenterX, plateY + plateHeight / 2 + 1.5, plateCenterZ),
+        targetDistance: 70,
+        initialFocus: smoothedFocusPoint.clone(),
+        initialDistance: cameraDistance,
+        lockAfter: true // lock camera after animation
+    };
+}
+
+// Spawns figures falling into the water around the boat after an iceberg collision
+function spawnFallingFigures(ship) {
+    if (figuresGroup) {
+        scene.remove(figuresGroup);
+    }
+    figuresGroup = new THREE.Group();
+
+    // Boat position
+    const boatX = ship.position.x;
+    const boatZ = ship.position.z;
+    const waterY = 0; // Water surface level
+    const clusterRadius = 60; // How far from the boat figures can appear
+    const numFigures = 60 + Math.floor(Math.random() * 40);
+    for (let i = 0; i < numFigures; ++i) {
+        // Random position within a circle around the boat
+        let angle = Math.random() * Math.PI * 2;
+        let radius = Math.sqrt(Math.random()) * clusterRadius;
+        let x = boatX + Math.cos(angle) * radius;
+        let z = boatZ + Math.sin(angle) * radius;
+        const y = waterY + 0.1; // just above the water
+
+        // Simple figure: cylinder (body) + sphere (head)
+        const bodyGeo = new THREE.CylinderGeometry(0.4, 0.4, 2, 8);
+        const headGeo = new THREE.SphereGeometry(0.5, 8, 8);
+        const color = new THREE.Color().setHSL(Math.random(), 0.5, 0.6);
+        const bodyMat = new THREE.MeshStandardMaterial({ color });
+        const headMat = new THREE.MeshStandardMaterial({ color: 0xffe0b0 });
+        const body = new THREE.Mesh(bodyGeo, bodyMat);
+        const head = new THREE.Mesh(headGeo, headMat);
+        body.position.set(x, y + 1, z);
+        head.position.set(x, y + 2, z);
+        body.castShadow = true;
+        head.castShadow = true;
+        figuresGroup.add(body);
+        figuresGroup.add(head);
+    }
+    scene.add(figuresGroup);
+}
+
 // Cache invalidation for service workers
 if ('caches' in window) {
     caches.keys().then(cacheNames => {
@@ -654,10 +842,7 @@ function buildGroupRectExclusionZone(group, padding = 36) {
 }
 
 
-// ...existing code...
-
-
-
+// --- Titanic Ship Collision and Damage ---
 const newYorkHarbor = createNewYorkHarbor();
 const newYorkCollisionBounds = buildNewYorkCollisionBounds(newYorkHarbor);
 const newYorkDynamicIceExclusion = buildGroupRectExclusionZone(newYorkHarbor, TITANIC_BOAT_LENGTH);
@@ -925,6 +1110,8 @@ function triggerIcebergImpact(ship, now, iceberg) {
     damageState.phaseStart = now;
     damageState.impactIceberg = iceberg;
     playImpactSound();
+    // Spawn people falling into the water
+    spawnFallingFigures(ship);
 }
 
 function createFloorSettleState(options = {}) {
@@ -1946,6 +2133,52 @@ function animate() {
         sea.userData.updateWaves();
     }
 
+    // Camera zoom and pan for cheering after disembark
+    if (window._cheeringCameraState) {
+        const camState = window._cheeringCameraState;
+        if (camState.active) {
+            const nowMs = performance.now();
+            const t = Math.min(1, (nowMs - camState.startTime) / camState.duration);
+            // Smoothstep for ease in/out
+            const smoothT = t * t * (3 - 2 * t);
+            // Interpolate focus and distance
+            smoothedFocusPoint.lerpVectors(camState.initialFocus, camState.targetFocus, smoothT);
+            cameraDistance = camState.initialDistance + (camState.targetDistance - camState.initialDistance) * smoothT;
+            if (t >= 1) {
+                camState.active = false;
+                // Lock camera on figures if requested
+                if (camState.lockAfter) {
+                    camState.lockedFocus = camState.targetFocus.clone();
+                    camState.lockedDistance = camState.targetDistance;
+                }
+                // Start cheering animation
+                if (window._cheeringFigures) {
+                    for (const fig of window._cheeringFigures) {
+                        fig.jumping = true;
+                    }
+                    window._cheeringStartTime = nowMs;
+                }
+            }
+        } else if (camState.lockAfter && camState.lockedFocus && camState.lockedDistance) {
+            // Keep camera fixed on cheering figures
+            smoothedFocusPoint.copy(camState.lockedFocus);
+            cameraDistance = camState.lockedDistance;
+        }
+    }
+
+    // Cheering animation: make figures jump up and down randomly
+    if (window._cheeringFigures) {
+        const now = performance.now() * 0.001;
+        for (const fig of window._cheeringFigures) {
+            if (fig.jumping) {
+                // Each figure jumps with a random phase and speed
+                const jump = Math.abs(Math.sin(now * fig.jumpSpeed + fig.jumpPhase)) * 2.2;
+                fig.body.position.y = fig.baseY + 1 + jump;
+                fig.head.position.y = fig.baseY + 2 + jump;
+            }
+        }
+    }
+
     // Handle movement input while the ship is still under player control.
     const damageState = titanic.userData.damageState;
     const previousShipPosition = shipPosition.clone();
@@ -1979,6 +2212,23 @@ function animate() {
         if (keys['e']) {
             shipYaw -= rotationSpeed;
         }
+    }
+
+    // Disembark button logic
+    // DEBUG: Always show button for manual testing
+    // showDisembarkButton();
+    // return;
+    // DEBUG: Uncomment to always show the button for testing
+    // showDisembarkButton();
+    // return;
+    if (!window._disembarkDone) {
+        if (isShipReadyToDisembark() && damageState.phase === 'sailing') {
+            showDisembarkButton();
+        } else {
+            hideDisembarkButton();
+        }
+    } else {
+        hideDisembarkButton();
     }
 
 
