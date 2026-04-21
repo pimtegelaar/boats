@@ -28,6 +28,7 @@ const oceanFloorY = -260;
 const OCEAN_FLOOR_SIZE = 14000;
 const OCEAN_FLOOR_HEIGHT_SCALE = 13;
 const shipBaselineDraftY = -7.2;
+const TITANIC_BOAT_LENGTH = 224;
 const NEW_YORK_CONFIG = Object.freeze({
     harborCenter: new THREE.Vector3(0, 0, 1700),
     harborRadius: 225,
@@ -632,14 +633,38 @@ function createIcebergField(options = {}) {
     return group;
 }
 
+function buildGroupRectExclusionZone(group, padding = 36) {
+    if (!group) {
+        return null;
+    }
+
+    group.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(group);
+    if (bounds.isEmpty()) {
+        return null;
+    }
+
+    return {
+        type: 'rect',
+        centerX: (bounds.min.x + bounds.max.x) * 0.5,
+        halfWidth: (bounds.max.x - bounds.min.x) * 0.5 + padding,
+        minZ: bounds.min.z - padding,
+        maxZ: bounds.max.z + padding
+    };
+}
+
 
 // ...existing code...
 
 
 
-const icebergField = createIcebergField({ exclusions: NEW_YORK_ICE_EXCLUSION_ZONES });
 const newYorkHarbor = createNewYorkHarbor();
 const newYorkCollisionBounds = buildNewYorkCollisionBounds(newYorkHarbor);
+const newYorkDynamicIceExclusion = buildGroupRectExclusionZone(newYorkHarbor, TITANIC_BOAT_LENGTH);
+const icebergSpawnExclusions = newYorkDynamicIceExclusion
+    ? NEW_YORK_ICE_EXCLUSION_ZONES.concat(newYorkDynamicIceExclusion)
+    : NEW_YORK_ICE_EXCLUSION_ZONES;
+const icebergField = createIcebergField({ exclusions: icebergSpawnExclusions });
 
 
 // Place the breakup seam between funnel 2 (z=20) and funnel 3 (z=-10).
@@ -1495,7 +1520,7 @@ function createTitanic() {
 
         const preScaleBounds = new THREE.Box3().setFromObject(group);
         const preScaleSize = preScaleBounds.getSize(new THREE.Vector3());
-        const targetLength = 224;
+        const targetLength = TITANIC_BOAT_LENGTH;
         const uniformScale = targetLength / Math.max(preScaleSize.z, 0.001);
         group.scale.setScalar(uniformScale);
 
