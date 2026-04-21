@@ -1009,6 +1009,11 @@ function moveAngleToward(current, target, maxDelta) {
     return current + THREE.MathUtils.clamp(target - current, -maxDelta, maxDelta);
 }
 
+function shouldPlayEarlySettleThud(settleState) {
+    // Fire slightly before final settle lock so audio matches perceived stop motion.
+    return settleState.hasTouchedFloor && !settleState.settled && settleState.restTime >= 0.05;
+}
+
 function updateFloorSettle(object, settleState, deltaSeconds, fallSinkSpeed = settleState.settleSinkSpeed) {
     const firstClearance = getOceanFloorClearance(object);
     if (firstClearance <= 0) {
@@ -1183,6 +1188,10 @@ function updateShipDamage(ship, now, deltaSeconds) {
                 damageState.foreThudPlayed = true;
                 playThudSound();
             }
+            if (!damageState.foreSettledThudPlayed && shouldPlayEarlySettleThud(foreFloorState)) {
+                damageState.foreSettledThudPlayed = true;
+                playThudSound();
+            }
         }
 
         if (!aftFloorState.settled) {
@@ -1198,6 +1207,10 @@ function updateShipDamage(ship, now, deltaSeconds) {
             updateFloorSettle(aftHalf, aftFloorState, deltaSeconds, aftSinkSpeed);
             if (!aftTouchedBefore && aftFloorState.hasTouchedFloor && !damageState.aftThudPlayed) {
                 damageState.aftThudPlayed = true;
+                playThudSound();
+            }
+            if (!damageState.aftSettledThudPlayed && shouldPlayEarlySettleThud(aftFloorState)) {
+                damageState.aftSettledThudPlayed = true;
                 playThudSound();
             }
         }
@@ -1515,6 +1528,8 @@ function createTitanic() {
         breakingSoundPlayed: false,
         foreThudPlayed: false,
         aftThudPlayed: false,
+        foreSettledThudPlayed: false,
+        aftSettledThudPlayed: false,
         intactFloorState: createFloorSettleState({
             targetRotationX: 0,
             targetRotationZ: 0,
