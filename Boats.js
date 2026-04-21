@@ -680,14 +680,28 @@ const shipSplitDrift = {
     currentStrength: 2.4, // multiplier for drift speeds after current starts
     currentMaxOffsetMultiplier: 2.2 // how much current extends max offset distances
 };
-const shipCollisionProbeRadius = 18;
+const shipCollisionProbeRadius = 5;
+// More probes along the hull for better coverage
 const shipCollisionProbeOffsets = [
-    new THREE.Vector3(0, 8, 110),
-    new THREE.Vector3(-11, 8, 72),
-    new THREE.Vector3(11, 8, 72),
-    new THREE.Vector3(-12, 8, -8),
-    new THREE.Vector3(12, 8, -8),
-    new THREE.Vector3(0, 8, -92)
+    new THREE.Vector3(0, 8, 112),
+    new THREE.Vector3(-8, 8, 105),
+    new THREE.Vector3(8, 8, 105),
+    new THREE.Vector3(-12, 8, 72),
+    new THREE.Vector3(12, 8, 72),
+    new THREE.Vector3(-14, 8, 40),
+    new THREE.Vector3(14, 8, 40),
+    new THREE.Vector3(-14, 8, -40),
+    new THREE.Vector3(14, 8, -40),
+    new THREE.Vector3(-12, 8, -72),
+    new THREE.Vector3(12, 8, -72),
+    new THREE.Vector3(0, 8, -112),
+    new THREE.Vector3(-8, 8, -105),
+    new THREE.Vector3(8, 8, -105),
+    new THREE.Vector3(0, 8, 0),
+    new THREE.Vector3(-6, 8, 90),
+    new THREE.Vector3(6, 8, 90),
+    new THREE.Vector3(-6, 8, -90),
+    new THREE.Vector3(6, 8, -90)
 ];
 
 function cloneMaterial(material) {
@@ -839,7 +853,7 @@ const icebergCollisionBounds = icebergField.children.map((iceberg) => {
     const bounds = iceberg.geometry.boundingBox;
     return {
         mesh: iceberg,
-        radius: iceberg.geometry.boundingSphere.radius * Math.max(iceberg.scale.x, iceberg.scale.z) * 0.9,
+        radius: iceberg.geometry.boundingSphere.radius * Math.max(iceberg.scale.x, iceberg.scale.z) * 0.6,
         halfHeight: (bounds.max.y - bounds.min.y) * iceberg.scale.y * 0.5
     };
 });
@@ -853,13 +867,11 @@ function detectIcebergCollision(ship) {
             const dx = probeWorld.x - icebergPosition.x;
             const dz = probeWorld.z - icebergPosition.z;
             const combinedRadius = shipCollisionProbeRadius + iceberg.radius;
-
             if (dx * dx + dz * dz > combinedRadius * combinedRadius) {
                 continue;
             }
-
             const verticalGap = Math.abs(probeWorld.y - icebergPosition.y);
-            if (verticalGap <= iceberg.halfHeight + 12) {
+            if (verticalGap <= iceberg.halfHeight + 6) {
                 return iceberg.mesh;
             }
         }
