@@ -1,3 +1,41 @@
+// --- Sound/Mute Toggle UI ---
+// Place this after all sound objects are declared
+
+window.addEventListener('DOMContentLoaded', () => {
+    let isMuted = false;
+    // All sound objects, including hornAudio
+    const allSounds = [];
+    if (typeof engineSound !== 'undefined') allSounds.push(engineSound);
+    if (typeof impactSound !== 'undefined') allSounds.push(impactSound);
+    if (typeof breakingSound !== 'undefined') allSounds.push(breakingSound);
+    if (typeof thudSound !== 'undefined') allSounds.push(thudSound);
+    if (typeof yaySound !== 'undefined') allSounds.push(yaySound);
+    if (typeof hornAudio !== 'undefined') allSounds.push(hornAudio);
+
+    function setAllSoundsMuted(muted) {
+        for (const snd of allSounds) {
+            snd.muted = muted;
+        }
+    }
+
+    function updateSoundButtonIcon() {
+        const btn = document.getElementById('sound-btn');
+        if (!btn) return;
+        btn.textContent = isMuted ? '🔇' : '🔊';
+    }
+
+    const soundBtn = document.getElementById('sound-btn');
+    if (soundBtn) {
+        soundBtn.addEventListener('click', () => {
+            isMuted = !isMuted;
+            setAllSoundsMuted(isMuted);
+            updateSoundButtonIcon();
+        });
+        // Set initial state
+        setAllSoundsMuted(isMuted);
+        updateSoundButtonIcon();
+    }
+});
 // --- Engine Sound ---
 
 const engineSound = new Audio('engine.mp3');
