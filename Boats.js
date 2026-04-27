@@ -367,9 +367,13 @@ function playThudSound() {
     }
 }
 
+
 const ENABLE_TOUCH_DEBUG = true;
 let touchDebugElement = null;
+let debugToggleButton = null;
+let debugVisible = false;
 if (ENABLE_TOUCH_DEBUG) {
+    // Create debug info element (hidden by default)
     touchDebugElement = document.createElement('div');
     touchDebugElement.style.position = 'fixed';
     touchDebugElement.style.right = '16px';
@@ -383,8 +387,37 @@ if (ENABLE_TOUCH_DEBUG) {
     touchDebugElement.style.fontFamily = 'monospace';
     touchDebugElement.style.fontSize = '11px';
     touchDebugElement.style.whiteSpace = 'pre';
-    touchDebugElement.style.pointerEvents = 'none';
+    touchDebugElement.style.pointerEvents = 'auto';
+    touchDebugElement.style.display = 'none';
     document.body.appendChild(touchDebugElement);
+
+    // Create debug toggle button (icon)
+    debugToggleButton = document.createElement('button');
+    debugToggleButton.setAttribute('aria-label', 'Show debug info');
+    debugToggleButton.style.position = 'fixed';
+    debugToggleButton.style.right = '16px';
+    debugToggleButton.style.bottom = '16px';
+    debugToggleButton.style.zIndex = '131';
+    debugToggleButton.style.width = '32px';
+    debugToggleButton.style.height = '32px';
+    debugToggleButton.style.border = 'none';
+    debugToggleButton.style.background = 'rgba(0,0,0,0.5)';
+    debugToggleButton.style.borderRadius = '50%';
+    debugToggleButton.style.display = 'flex';
+    debugToggleButton.style.alignItems = 'center';
+    debugToggleButton.style.justifyContent = 'center';
+    debugToggleButton.style.cursor = 'pointer';
+    debugToggleButton.style.padding = '0';
+    debugToggleButton.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+    // Bug icon SVG
+    debugToggleButton.innerHTML = '<svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg"><g stroke="#bfefff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="10" cy="13" rx="5" ry="5.5" fill="none"/><path d="M10 7V3"/><path d="M7 3.5l1.5 2"/><path d="M13 3.5l-1.5 2"/><path d="M4 13h12"/><path d="M3 10l2 1"/><path d="M17 10l-2 1"/><path d="M3 16l2-1"/><path d="M17 16l-2-1"/></g></svg>';
+    document.body.appendChild(debugToggleButton);
+
+    debugToggleButton.addEventListener('click', () => {
+        debugVisible = !debugVisible;
+        touchDebugElement.style.display = debugVisible ? 'block' : 'none';
+        debugToggleButton.setAttribute('aria-label', debugVisible ? 'Hide debug info' : 'Show debug info');
+    });
 }
 
 // Lighting
