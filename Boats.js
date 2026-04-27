@@ -1636,6 +1636,7 @@ function collectPropellerScrews(shipRoot) {
             screws.push(child);
         }
     });
+    return screws;
 }
 
 function updatePropellerScrews(screws, spinStep) {
