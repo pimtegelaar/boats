@@ -197,6 +197,20 @@ if ('caches' in window) {
 
 // Scene setup
 const scene = new THREE.Scene();
+
+// Renderer must be initialized before oceanFloor, since createOceanFloor uses it
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.localClippingEnabled = true;
+document.body.appendChild(renderer.domElement);
+
+// Ensure all constants used by createOceanFloor are defined before oceanFloor
+const oceanFloorY = -260;
+const OCEAN_FLOOR_SIZE = 14000;
+const OCEAN_FLOOR_HEIGHT_SCALE = 13;
+const oceanFloor = createOceanFloor();
+
 const WATER_COLOR_PALETTE = {
     skyEnv: 0x87ceeb,
     underwaterEnv: 0x144f7d,
@@ -205,6 +219,21 @@ const WATER_COLOR_PALETTE = {
     seaEmissiveAbove: 0x000000,
     seaEmissiveUnderwater: 0x3f7fa1
 };
+// --- Europe Meshes ---
+const EUROPE_X = 0; // Place Europe at the opposite side of New York
+const EUROPE_Z = -1700;
+const europeGroup = window.createEuropeMeshes();
+europeGroup.position.set(EUROPE_X, 0, EUROPE_Z);
+scene.add(europeGroup);
+
+// Add iceberg exclusion zone for Europe
+const EUROPE_EXCLUSION = {
+    type: 'rect',
+    centerX: EUROPE_X,
+    halfWidth: 120,
+    minZ: EUROPE_Z - 120,
+    maxZ: EUROPE_Z + 220
+};
 const SKY_ENV_COLOR = WATER_COLOR_PALETTE.skyEnv;
 const UNDERWATER_ENV_COLOR = WATER_COLOR_PALETTE.underwaterEnv;
 const FOG_NEAR_DISTANCE = 100;
@@ -212,9 +241,7 @@ const FOG_FAR_DISTANCE = 2000;
 scene.background = new THREE.Color(SKY_ENV_COLOR); // Sky blue
 scene.fog = new THREE.Fog(SKY_ENV_COLOR, FOG_NEAR_DISTANCE, FOG_FAR_DISTANCE);
 
-const oceanFloorY = -260;
-const OCEAN_FLOOR_SIZE = 14000;
-const OCEAN_FLOOR_HEIGHT_SCALE = 13;
+
 const shipBaselineDraftY = -7.2;
 const TITANIC_BOAT_LENGTH = 224;
 const NEW_YORK_CONFIG = Object.freeze({
@@ -286,12 +313,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(0, 50, 100);
 
-// Renderer
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.localClippingEnabled = true;
-document.body.appendChild(renderer.domElement);
+
 
 const BUILD_VERSION = 'v2026.04.19-full-screen5';
 
@@ -745,7 +767,7 @@ function createOceanFloor() {
     return oceanFloor;
 }
 
-const oceanFloor = createOceanFloor();
+
 
 // Scatter a reusable set of low-poly icebergs across the map.
 function createIcebergField(options = {}) {
@@ -880,8 +902,8 @@ const newYorkHarbor = createNewYorkHarbor();
 const newYorkCollisionBounds = buildNewYorkCollisionBounds(newYorkHarbor);
 const newYorkDynamicIceExclusion = buildGroupRectExclusionZone(newYorkHarbor, TITANIC_BOAT_LENGTH);
 const icebergSpawnExclusions = newYorkDynamicIceExclusion
-    ? NEW_YORK_ICE_EXCLUSION_ZONES.concat(newYorkDynamicIceExclusion)
-    : NEW_YORK_ICE_EXCLUSION_ZONES;
+    ? NEW_YORK_ICE_EXCLUSION_ZONES.concat([newYorkDynamicIceExclusion, EUROPE_EXCLUSION])
+    : NEW_YORK_ICE_EXCLUSION_ZONES.concat([EUROPE_EXCLUSION]);
 const icebergField = createIcebergField({ exclusions: icebergSpawnExclusions });
 
 
@@ -1614,7 +1636,6 @@ function collectPropellerScrews(shipRoot) {
             screws.push(child);
         }
     });
-    return screws;
 }
 
 function updatePropellerScrews(screws, spinStep) {
@@ -1760,7 +1781,6 @@ function createTitanic() {
         const scaledCenter = scaledBounds.getCenter(new THREE.Vector3());
         group.position.set(-scaledCenter.x, -scaledBounds.min.y, -scaledCenter.z);
 
-        // Preserve split animation by marking imported geometry as split-capable.
         group.traverse((child) => {
             if (!child.isMesh) {
                 return;
@@ -1816,8 +1836,10 @@ function createTitanic() {
     return root;
 }
 
+
+
+const STERN_OFFSET = -112; // stern-most Z in TitanicMeshes.js
 const titanic = createTitanic();
-titanic.position.set(0, shipBaselineDraftY, 0);
 
 // Input handling
 const keys = {};
@@ -2132,7 +2154,7 @@ document.addEventListener('mousemove', (e) => {
 });
 
 // Navigation variables
-const shipPosition = new THREE.Vector3(0, shipBaselineDraftY, 0);
+const shipPosition = new THREE.Vector3(EUROPE_X, shipBaselineDraftY, EUROPE_Z + 30 - STERN_OFFSET);
 const moveSpeed = 0.5;
 const mobileMoveSpeedMultiplier = 1.8;
 const rotationSpeed = 0.003;
@@ -2150,6 +2172,8 @@ const shipRight = new THREE.Vector3(1, 0, 0);
 
 // Euler angles for ship rotation
 let shipYaw = 0;
+shipYaw = 0; // Face positive Z (toward New York)
+shipYaw = 0; // Face positive Z (toward New York)
 
 
 
