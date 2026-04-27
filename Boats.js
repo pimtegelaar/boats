@@ -1,3 +1,35 @@
+// --- Engine Sound ---
+
+const engineSound = new Audio('engine.mp3');
+engineSound.preload = 'auto';
+engineSound.loop = true;
+const ENGINE_TARGET_VOLUME = 0.7;
+let engineSoundIsPlaying = false;
+let engineSoundFadeFrame = null;
+let engineSoundFading = false;
+let engineSoundFadeTarget = ENGINE_TARGET_VOLUME;
+
+function fadeAudioVolume(audio, from, to, durationMs, onComplete) {
+    if (audio._fadeFrame) {
+        cancelAnimationFrame(audio._fadeFrame);
+        audio._fadeFrame = null;
+    }
+    const start = performance.now();
+    function step(now) {
+        const elapsed = now - start;
+        const t = Math.min(1, elapsed / durationMs);
+        audio.volume = from + (to - from) * t;
+        if (t < 1) {
+            audio._fadeFrame = requestAnimationFrame(step);
+        } else {
+            audio.volume = to;
+            audio._fadeFrame = null;
+            if (onComplete) onComplete();
+        }
+    }
+    audio._fadeFrame = requestAnimationFrame(step);
+}
+
 // --- Disembark Button and Figures ---
 let disembarkButton = null;
 let figuresGroup = null;
@@ -77,6 +109,17 @@ function spawnDisembarkFigures() {
     // Hide the disembark button immediately
     hideDisembarkButton();
     window._disembarkDone = true; // Prevent button from reappearing
+
+    // Delay the cheer sound and jumping by 1 second
+    setTimeout(() => {
+        playYaySound();
+        if (window._cheeringFigures) {
+            for (const fig of window._cheeringFigures) {
+                fig.jumping = true;
+            }
+        }
+        window._cheeringStartTime = performance.now();
+    }, 1000);
 
     if (figuresGroup) {
         scene.remove(figuresGroup);
@@ -385,6 +428,21 @@ function playThudSound() {
     if (playAttempt && typeof playAttempt.catch === 'function') {
         playAttempt.catch((error) => {
             console.warn('Thud sound failed to play:', error);
+        });
+    }
+}
+
+// --- Sound for Disembark ---
+const yaySound = new Audio('yay.mp3');
+yaySound.preload = 'auto';
+yaySound.volume = 0.95;
+
+function playYaySound() {
+    yaySound.currentTime = 0;
+    const playAttempt = yaySound.play();
+    if (playAttempt && typeof playAttempt.catch === 'function') {
+        playAttempt.catch((error) => {
+            console.warn('Yay sound failed to play:', error);
         });
     }
 }
@@ -2296,12 +2354,43 @@ function animate() {
 
     const movementDelta = shipPosition.clone().sub(previousShipPosition);
     const horizontalMovementDistance = Math.hypot(movementDelta.x, movementDelta.z);
+    // Engine sound logic with fade in/out
     if (damageState.phase === 'sailing' && horizontalMovementDistance > 0.0001) {
+        // Play engine sound if not already playing
+        if (!engineSoundIsPlaying) {
+            engineSound.currentTime = 0;
+            engineSound.volume = 0;
+            const playAttempt = engineSound.play();
+            engineSoundIsPlaying = true;
+            if (playAttempt && typeof playAttempt.catch === 'function') {
+                playAttempt.catch((error) => {
+                    console.warn('Engine sound failed to play:', error);
+                    engineSoundIsPlaying = false;
+                });
+            }
+        }
+        // Fade in if needed
+        if (engineSound.volume < ENGINE_TARGET_VOLUME - 0.01 && !engineSound._fadeFrame) {
+            fadeAudioVolume(engineSound, engineSound.volume, ENGINE_TARGET_VOLUME, 400);
+        }
         const forwardNow = shipForward.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), shipYaw);
         const signedForwardDistance = movementDelta.dot(forwardNow);
         const spinDirection = signedForwardDistance < 0 ? -1 : 1;
         const screwSpinStep = horizontalMovementDistance * spinDirection * 0.2;
         updatePropellerScrews(titanic.userData.propellerScrews, screwSpinStep);
+    } else {
+        // Fade out and pause engine sound if playing
+        if (engineSoundIsPlaying && engineSound.volume > 0.01 && !engineSound._fadeFrame) {
+            fadeAudioVolume(engineSound, engineSound.volume, 0, 700, () => {
+                engineSound.pause();
+                engineSound.currentTime = 0;
+                engineSoundIsPlaying = false;
+            });
+        } else if (engineSoundIsPlaying && engineSound.volume <= 0.01 && !engineSound._fadeFrame) {
+            engineSound.pause();
+            engineSound.currentTime = 0;
+            engineSoundIsPlaying = false;
+        }
     }
 
     titanic.updateMatrixWorld(true);
