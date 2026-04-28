@@ -35,6 +35,18 @@ window.addEventListener('DOMContentLoaded', () => {
         setAllSoundsMuted(isMuted);
         updateSoundButtonIcon();
     }
+
+    // --- Horn Button ---
+    const hornBtn = document.getElementById('horn-btn');
+    if (hornBtn) {
+        hornBtn.addEventListener('click', () => {
+            // Same logic as 'H' key: only honk if ship is sailing
+            if (typeof titanic !== 'undefined' && titanic.userData.damageState.phase === 'sailing') {
+                hornAudio.currentTime = 0;
+                hornAudio.play();
+            }
+        });
+    }
 });
 // --- Engine Sound ---
 
