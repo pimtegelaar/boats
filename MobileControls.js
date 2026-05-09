@@ -100,7 +100,7 @@
         window.addEventListener('touchcancel', onTouchEnd,   { passive: false });
 
         // On pointer-coarse (touch) devices show the joystick immediately
-        if (window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
             container.style.display = 'block';
         }
 
