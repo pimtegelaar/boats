@@ -238,6 +238,27 @@ function spawnDisembarkFigures() {
         initialDistance: cameraDistance,
         lockAfter: true // lock camera after animation
     };
+
+    // After a delay, return the camera to the Titanic
+    setTimeout(() => {
+        triggerCameraReturnToTitanic();
+    }, 7000); // 7 seconds of cheering before returning
+}
+
+// Helper to smoothly return camera to Titanic
+function triggerCameraReturnToTitanic() {
+    if (!titanic) return;
+    const titanicFocus = getShipFocusPoint(titanic);
+    window._cheeringCameraState = {
+        active: true,
+        startTime: performance.now(),
+        duration: 2000, // ms
+        targetFocus: titanicFocus.clone(),
+        targetDistance: 240, // default camera distance
+        initialFocus: smoothedFocusPoint.clone(),
+        initialDistance: cameraDistance,
+        lockAfter: false // allow normal camera control after
+    };
 }
 
 // Spawns figures falling into the water around the boat after an iceberg collision
@@ -1992,7 +2013,7 @@ const maxCameraDistance = 600; // Increased from 300 for greater zoom-out
 
 // On small screens, start with a farther camera distance so Europe is visible
 if (window.innerWidth < 900) {
-    cameraDistance = 400;
+    cameraDistance = 600;
 }
 const zoomSensitivity = 0.08;
 const touchLookSensitivity = 0.005;
