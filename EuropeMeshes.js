@@ -58,10 +58,11 @@ function createChurch() {
     group.add(body);
     // Roof (pointed)
     const roof = new THREE.Mesh(
-        new THREE.ConeGeometry(16, 16, 4),
+        new THREE.ConeGeometry(12, 16, 4),
         new THREE.MeshPhongMaterial({ color: 0x888888 })
     );
-    roof.position.set(0, 38, 0);
+    // Place the roof so its base sits on top of the main body (body top is at y=44, cone base is at y=0, height=16)
+    roof.position.set(0, 44 + 8, 0); // y = 52
     roof.rotation.y = Math.PI / 4;
     group.add(roof);
     // Tall spire tower (left side)
@@ -107,7 +108,8 @@ function createChurch() {
         new THREE.ConeGeometry(2.4, 8, 4),
         new THREE.MeshPhongMaterial({ color: 0x555555 })
     );
-    sideRoof.position.set(16, 28, 0);
+    // Place the side roof so its base sits on top of the side tower (tower top is at y=28, cone base is at y=0, height=8)
+    sideRoof.position.set(16, 28 + 4, 0); // y = 32
     group.add(sideRoof);
     return group;
 }
