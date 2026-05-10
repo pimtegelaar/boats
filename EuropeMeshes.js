@@ -75,18 +75,25 @@ function createChurch() {
     const spire = createSpire(44, 4);
     spire.position.set(-14, 64 + 22, 0);
     group.add(spire);
-    // Cross on spire
+    // Cross on spire (upright)
+    const crossHeight = 4;
+    // Spire tip is at y = (64 + 22) + 44/2 = 108
+    const spireBaseY = 64 + 22;
+    const spireHeight = 44;
+    const spireTipY = spireBaseY + spireHeight / 2;
+    // Vertical bar: center is at spireTipY + crossHeight/2, so base is at spireTipY
     const cross = new THREE.Mesh(
-        new THREE.BoxGeometry(0.6, 4, 0.6),
+        new THREE.BoxGeometry(0.6, crossHeight, 0.6),
         new THREE.MeshPhongMaterial({ color: 0xffff00 })
     );
-    cross.position.set(-14, 64 + 22 + 24, 0);
+    cross.position.set(-14, spireTipY + crossHeight / 2, 0);
     group.add(cross);
+    // CrossBar: about 70% up the vertical bar
     const crossBar = new THREE.Mesh(
         new THREE.BoxGeometry(2, 0.6, 0.6),
         new THREE.MeshPhongMaterial({ color: 0xffff00 })
     );
-    crossBar.position.set(-14, 64 + 22 + 23, 0);
+    crossBar.position.set(-14, spireTipY + crossHeight * 0.7, 0);
     group.add(crossBar);
     // Small side tower (right)
     const sideTower = new THREE.Mesh(
