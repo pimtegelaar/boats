@@ -1988,7 +1988,12 @@ let rightMouseDown = false;
 // Camera rig controls
 let cameraDistance = 240;
 const minCameraDistance = 30;
-const maxCameraDistance = 300;
+const maxCameraDistance = 600; // Increased from 300 for greater zoom-out
+
+// On small screens, start with a farther camera distance so Europe is visible
+if (window.innerWidth < 900) {
+    cameraDistance = 400;
+}
 const zoomSensitivity = 0.08;
 const touchLookSensitivity = 0.005;
 const pinchZoomSensitivity = 0.22;
