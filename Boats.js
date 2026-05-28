@@ -48,7 +48,64 @@ window.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-// --- Engine Sound ---
+
+// --- Game Start Popup ---
+function showGameStartPopup() {
+    if (document.getElementById('game-start-popup')) return;
+    // Detect touch support
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    let controlsMsg = '';
+    if (isTouch) {
+        controlsMsg = '<div style="margin-top:18px;font-size:1em;line-height:1.5;">Touch and drag the <b>joystick</b> at the bottom left to steer.<br>Pinch to zoom, drag to look around.</div>';
+    } else {
+        controlsMsg = '<div style="margin-top:18px;font-size:1em;line-height:1.5;text-align:left;display:inline-block;">Controls:<ul style="margin:8px 0 0 18px;padding:0;text-align:left;">'
+            + '<li>Move: <b>W/A/S/D</b> or <b>Arrow keys</b></li>'
+            + '<li>Rotate: <b>Q/E</b></li>'
+            + '<li>Horn: <b>H</b> or button</li>'
+            + '<li>Up: <b>Space</b>, Down: <b>Ctrl</b></li>'
+            + '<li>Mouse: Look/drag, scroll to zoom</li>'
+            + '</ul></div>';
+    }
+    const popup = document.createElement('div');
+    popup.id = 'game-start-popup';
+    popup.innerHTML = `
+        <div style="font-size:1.35em;font-weight:bold;margin-bottom:10px;letter-spacing:0.01em;">Passengers just embarked from Europe!</div>
+        <div style="font-size:1.08em;margin-bottom:8px;">Sail to New York while avoiding ice-bergs!</div>
+        ${controlsMsg}
+        <button id="game-start-ok-btn" style="margin-top:28px;padding:10px 36px;font-size:1.1em;font-weight:bold;background:linear-gradient(90deg,#1e90ff,#00bfff);color:#fff;border:none;border-radius:8px;box-shadow:0 2px 8px rgba(30,144,255,0.18);cursor:pointer;transition:background 0.2s;outline:none;">OK</button>
+    `;
+    popup.style.position = 'fixed';
+    popup.style.top = '50%';
+    popup.style.left = '50%';
+    popup.style.transform = 'translate(-50%, -50%) scale(0.96)';
+    popup.style.background = 'rgba(18,28,48,0.97)';
+    popup.style.color = '#fff';
+    popup.style.padding = '32px 36px 28px 36px';
+    popup.style.borderRadius = '18px';
+    popup.style.fontFamily = 'system-ui, Arial, sans-serif';
+    popup.style.fontSize = '1.2em';
+    popup.style.textAlign = 'center';
+    popup.style.zIndex = 10000;
+    popup.style.boxShadow = '0 8px 40px rgba(0,0,0,0.45)';
+    popup.style.maxWidth = '92vw';
+    popup.style.pointerEvents = 'auto';
+    popup.style.opacity = '0';
+    popup.style.transition = 'opacity 0.35s cubic-bezier(.4,1.6,.6,1), transform 0.35s cubic-bezier(.4,1.6,.6,1)';
+    document.body.appendChild(popup);
+    setTimeout(() => {
+        popup.style.opacity = '1';
+        popup.style.transform = 'translate(-50%, -50%) scale(1)';
+    }, 10);
+    // Dismiss on OK button
+    const okBtn = popup.querySelector('#game-start-ok-btn');
+    if (okBtn) {
+        okBtn.addEventListener('click', () => popup.remove());
+        okBtn.focus();
+    }
+    // Fallback: auto-dismiss after 9 seconds
+    setTimeout(() => { if (popup.parentNode) popup.remove(); }, 9000);
+}
+
 
 const engineSound = new Audio('engine.mp3');
 engineSound.preload = 'auto';
@@ -1969,7 +2026,11 @@ function createTitanic() {
 
 
 const STERN_OFFSET = -112; // stern-most Z in TitanicMeshes.js
+
 const titanic = createTitanic();
+
+// Show the popup 4 seconds after game start
+setTimeout(showGameStartPopup, 4000);
 
 // Input handling
 window.keys = window.keys || {};
