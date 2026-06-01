@@ -84,7 +84,7 @@ function showGameStartPopup() {
     const popup = document.createElement('div');
     popup.id = 'game-start-popup';
     popup.innerHTML = `
-        <div style="font-size:1.35em;font-weight:bold;margin-bottom:10px;letter-spacing:0.01em;">Passengers just embarked from Europe!</div>
+        <div style="font-size:1.35em;font-weight:bold;margin-bottom:10px;letter-spacing:0.01em;">Passengers just embarked Titanic from Europe!</div>
         <div style="font-size:1.08em;margin-bottom:8px;">Sail to New York while avoiding ice-bergs!</div>
         ${controlsMsg}
         <button id="game-start-ok-btn" style="margin-top:28px;padding:10px 36px;font-size:1.1em;font-weight:bold;background:linear-gradient(90deg,#1e90ff,#00bfff);color:#fff;border:none;border-radius:8px;box-shadow:0 2px 8px rgba(30,144,255,0.18);cursor:pointer;transition:background 0.2s;outline:none;">OK</button>
