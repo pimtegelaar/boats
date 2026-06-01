@@ -43,7 +43,12 @@ window.addEventListener('DOMContentLoaded', () => {
             // Same logic as 'H' key: only honk if ship is sailing
             if (typeof titanic !== 'undefined' && titanic.userData.damageState.phase === 'sailing') {
                 hornAudio.currentTime = 0;
-                hornAudio.play();
+                // Note: scheduleAudioPlay is defined later in the script after audio element creation
+                if (typeof scheduleAudioPlay === 'function') {
+                    scheduleAudioPlay(hornAudio, 'horn');
+                } else {
+                    hornAudio.play();
+                }
             }
         });
     }
@@ -622,6 +627,30 @@ camera.position.set(0, 50, 100);
 
 const BUILD_VERSION = 'v2026.04.19-full-screen5';
 
+// Preload audio files more explicitly to avoid mobile delay
+async function createAndPreloadAudio(src, volume) {
+    const audio = new Audio(src);
+    audio.preload = 'auto';
+    audio.volume = volume;
+
+    // Store the fetch promise to ensure the file is being downloaded
+    if (!window._audioPreloadPromises) {
+        window._audioPreloadPromises = [];
+    }
+
+    // Fetch the audio file to ensure it's in the browser cache
+    const fetchPromise = fetch(src)
+        .then(response => {
+            if (!response.ok) throw new Error(`Failed to load ${src}`);
+            return response.arrayBuffer();
+        })
+        .catch(err => console.warn(`Preload warning for ${src}:`, err))
+        .then(() => audio); // Return the audio element once loaded
+
+    window._audioPreloadPromises.push(fetchPromise);
+    return audio;
+}
+
 const impactSound = new Audio('ice_breaking.mp3');
 impactSound.preload = 'auto';
 impactSound.volume = 0.85;
@@ -631,6 +660,18 @@ breakingSound.volume = 0.9;
 const thudSound = new Audio('thud.wav');
 thudSound.preload = 'auto';
 thudSound.volume = 0.9;
+
+// Preload audio files in background
+if (!window._audioPreloading) {
+    window._audioPreloading = true;
+    fetch('ice_breaking.mp3').catch(() => {});
+    fetch('breaking.wav').catch(() => {});
+    fetch('thud.wav').catch(() => {});
+    fetch('engine.mp3').catch(() => {});
+    fetch('horn.mp3').catch(() => {});
+    fetch('yay.mp3').catch(() => {});
+}
+
 let impactSoundUnlocked = false;
 
 function unlockImpactSound() {
@@ -655,7 +696,16 @@ function unlockImpactSound() {
         impactSoundUnlocked = true;
     };
 
-    const attempts = sounds.map((sound) => sound.play()).filter((attempt) => attempt && typeof attempt.then === 'function');
+    const attempts = sounds.map((sound) => {
+        try {
+            const attempt = sound.play();
+            return attempt && typeof attempt.then === 'function' ? attempt : null;
+        } catch (e) {
+            console.warn('Audio unlock error:', e);
+            return null;
+        }
+    }).filter((attempt) => attempt != null);
+
     if (attempts.length > 0) {
         Promise.allSettled(attempts).then(finalizeUnlock).catch(finalizeUnlock);
         return;
@@ -664,34 +714,81 @@ function unlockImpactSound() {
     finalizeUnlock();
 }
 
+// Sound playback queue for handling delayed audio on mobile
+let soundPlaybackQueue = [];
+
+function scheduleAudioPlay(audioElement, soundName = 'unknown') {
+    return new Promise((resolve) => {
+        const attemptPlay = () => {
+            try {
+                const playAttempt = audioElement.play();
+                if (playAttempt && typeof playAttempt.then === 'function') {
+                    playAttempt.then(resolve).catch((error) => {
+                        // If play failed, retry after a short delay (mobile fix)
+                        if (audioElement.paused) {
+                            setTimeout(attemptPlay, 10);
+                        } else {
+                            resolve();
+                        }
+                    });
+                } else {
+                    resolve();
+                }
+            } catch (e) {
+                // On error, resolve immediately
+                resolve();
+            }
+        };
+        attemptPlay();
+    });
+}
+
 function playImpactSound() {
     impactSound.currentTime = 0;
-    const playAttempt = impactSound.play();
-    if (playAttempt && typeof playAttempt.catch === 'function') {
-        playAttempt.catch((error) => {
-            console.warn('Impact sound failed to play:', error);
-        });
-    }
+    scheduleAudioPlay(impactSound, 'impact');
 }
 
 function playBreakingSound() {
     breakingSound.currentTime = 0;
-    const playAttempt = breakingSound.play();
-    if (playAttempt && typeof playAttempt.catch === 'function') {
-        playAttempt.catch((error) => {
-            console.warn('Breaking sound failed to play:', error);
-        });
+    scheduleAudioPlay(breakingSound, 'breaking');
+}
+
+// Create a pool of thud sounds to avoid delays on mobile
+let thudSoundPool = null;
+function initThudSoundPool() {
+    if (!thudSoundPool) {
+        thudSoundPool = [];
+        // Create 2 instances of the thud sound for pooling
+        for (let i = 0; i < 2; i++) {
+            const audio = new Audio('thud.wav');
+            audio.preload = 'auto';
+            audio.volume = 0.9;
+            thudSoundPool.push({ audio, inUse: false });
+        }
+        // Also preload the main instance
+        fetch('thud.wav').catch(() => {});
     }
 }
 
 function playThudSound() {
-    thudSound.currentTime = 0;
-    const playAttempt = thudSound.play();
-    if (playAttempt && typeof playAttempt.catch === 'function') {
-        playAttempt.catch((error) => {
-            console.warn('Thud sound failed to play:', error);
-        });
+    // Initialize pool if needed
+    initThudSoundPool();
+
+    // Try to use a pooled instance if the main one is playing or not paused
+    let audioToPlay = thudSound;
+
+    if (thudSound.currentTime > 0 && !thudSound.paused && thudSoundPool) {
+        // Main sound is playing, try to find a free instance in the pool
+        for (const poolItem of thudSoundPool) {
+            if (poolItem.audio.paused || poolItem.audio.ended) {
+                audioToPlay = poolItem.audio;
+                break;
+            }
+        }
     }
+
+    audioToPlay.currentTime = 0;
+    scheduleAudioPlay(audioToPlay, 'thud');
 }
 
 // --- Sound for Disembark ---
@@ -701,12 +798,7 @@ yaySound.volume = 0.95;
 
 function playYaySound() {
     yaySound.currentTime = 0;
-    const playAttempt = yaySound.play();
-    if (playAttempt && typeof playAttempt.catch === 'function') {
-        playAttempt.catch((error) => {
-            console.warn('Yay sound failed to play:', error);
-        });
-    }
+    scheduleAudioPlay(yaySound, 'yay');
 }
 
 
@@ -2182,7 +2274,11 @@ window.addEventListener('keydown', (e) => {
     if (e.key.toLowerCase() === 'h') {
         if (titanic.userData.damageState.phase === 'sailing') {
             hornAudio.currentTime = 0;
-            hornAudio.play();
+            if (typeof scheduleAudioPlay === 'function') {
+                scheduleAudioPlay(hornAudio, 'horn');
+            } else {
+                hornAudio.play();
+            }
         }
     }
 });
