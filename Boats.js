@@ -491,6 +491,46 @@ const europeGroup = window.createEuropeMeshes();
 europeGroup.position.set(EUROPE_X, 0, EUROPE_Z);
 scene.add(europeGroup);
 
+// Build a simple collision bound for Europe so the ship can't pass through it.
+// We use a lightweight axis-aligned box test against the ship's collision probes.
+let europeCollisionBounds = null;
+(function buildEuropeCollisionBounds() {
+    europeGroup.updateMatrixWorld(true);
+    const bounds = new THREE.Box3().setFromObject(europeGroup);
+    if (bounds.isEmpty()) {
+        europeCollisionBounds = null;
+        return;
+    }
+    const padding = 12; // extra padding to avoid clipping
+    europeCollisionBounds = {
+        minX: bounds.min.x - padding,
+        maxX: bounds.max.x + padding,
+        minZ: bounds.min.z - padding,
+        maxZ: bounds.max.z + padding,
+        minY: bounds.min.y - padding,
+        maxY: bounds.max.y + padding
+    };
+})();
+
+function detectEuropeCollision(ship) {
+    if (!europeCollisionBounds) return null;
+    ship.updateMatrixWorld(true);
+    for (const probeOffset of shipCollisionProbeOffsets) {
+        const probeWorld = ship.localToWorld(probeOffset.clone());
+        if (probeWorld.x >= europeCollisionBounds.minX && probeWorld.x <= europeCollisionBounds.maxX &&
+            probeWorld.z >= europeCollisionBounds.minZ && probeWorld.z <= europeCollisionBounds.maxZ) {
+            const midY = (europeCollisionBounds.minY + europeCollisionBounds.maxY) * 0.5;
+            const halfHeight = (europeCollisionBounds.maxY - europeCollisionBounds.minY) * 0.5;
+            const verticalGap = Math.abs(probeWorld.y - midY);
+            // Allow some vertical tolerance so small probes near waterline still collide
+            if (verticalGap <= halfHeight + 12) {
+                return europeGroup;
+            }
+        }
+    }
+    return null;
+}
+
 // Add iceberg exclusion zone for Europe
 const EUROPE_EXCLUSION = {
     type: 'rect',
@@ -2624,9 +2664,16 @@ function animate() {
             triggerIcebergImpact(titanic, now, hitIceberg);
         }
 
+        // Prevent the ship from moving through solid structures: New York and Europe.
         const hitNewYork = detectNewYorkCollision(titanic);
         if (hitNewYork) {
             // Block movement into New York but don't cause damage
+            shipPosition.copy(previousShipPosition);
+        }
+
+        const hitEurope = detectEuropeCollision(titanic);
+        if (hitEurope) {
+            // Block movement into Europe as a solid object
             shipPosition.copy(previousShipPosition);
         }
     }
