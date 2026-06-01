@@ -78,7 +78,6 @@ function showGameStartPopup() {
             + '<li>Move: <b>W/A/S/D</b> or <b>Arrow keys</b></li>'
             + '<li>Rotate: <b>Q/E</b></li>'
             + '<li>Horn: <b>H</b> or button</li>'
-            + '<li>Up: <b>Space</b>, Down: <b>Ctrl</b></li>'
             + '<li>Mouse: Look/drag, scroll to zoom</li>'
             + '</ul></div>';
     }
@@ -2138,9 +2137,6 @@ window.addEventListener('keydown', (e) => {
     unlockImpactSound();
     keys[e.key.toLowerCase()] = true;
 
-    // Handle special keys
-    if (e.code === 'Space') keys[' '] = true;
-    if (e.ctrlKey) keys['control'] = true;
 
     // Play horn on 'h' only when the ship is above water (sailing)
     if (e.key.toLowerCase() === 'h') {
@@ -2153,8 +2149,6 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('keyup', (e) => {
     keys[e.key.toLowerCase()] = false;
-    if (e.code === 'Space') keys[' '] = false;
-    if (e.ctrlKey) keys['control'] = false;
 });
 
 // Mouse look
@@ -2548,12 +2542,6 @@ function animate() {
         }
         if (keys['d']) {
             shipYaw -= rotationSpeed;
-        }
-        if (keys[' ']) {
-            shipPosition.y += currentMoveSpeed;
-        }
-        if (keys['control']) {
-            shipPosition.y -= currentMoveSpeed;
         }
 
         // Rotate ship with Q and E keys (optional, but nice for ship rotation)
