@@ -2484,7 +2484,7 @@ document.addEventListener('mousemove', (e) => {
 // Navigation variables
 const shipPosition = new THREE.Vector3(EUROPE_X, shipBaselineDraftY, EUROPE_Z + 30 - STERN_OFFSET);
 const moveSpeed = 0.5;
-const mobileMoveSpeedMultiplier = 1.8;
+const mobileMoveSpeedMultiplier = 2.5;
 const rotationSpeed = 0.003;
 let lastFrameTime = performance.now() * 0.001;
 
