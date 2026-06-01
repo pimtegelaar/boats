@@ -47,6 +47,22 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    // --- Restart Button ---
+    const restartBtn = document.getElementById('restart-btn');
+    if (restartBtn) {
+        restartBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Use a custom in-page confirmation to avoid native browser popup UI
+            if (typeof showRestartConfirmation === 'function') {
+                showRestartConfirmation();
+            } else {
+                // Fallback
+                const ok = window.confirm('Restart the simulation? All progress will be lost.');
+                if (ok) window.location.reload();
+            }
+        });
+    }
 });
 
 // --- Game Start Popup ---
@@ -104,6 +120,85 @@ function showGameStartPopup() {
     }
     // Fallback: auto-dismiss after 9 seconds
     setTimeout(() => { if (popup.parentNode) popup.remove(); }, 9000);
+}
+
+// --- Restart Confirmation (in-page modal) ---
+function showRestartConfirmation() {
+    if (document.getElementById('restart-confirm-popup')) return;
+    const backdrop = document.createElement('div');
+    backdrop.id = 'restart-confirm-backdrop';
+    backdrop.style.position = 'fixed';
+    backdrop.style.inset = '0';
+    backdrop.style.background = 'rgba(0,0,0,0.45)';
+    backdrop.style.zIndex = 10000;
+    backdrop.style.pointerEvents = 'auto';
+    document.body.appendChild(backdrop);
+
+    const popup = document.createElement('div');
+    popup.id = 'restart-confirm-popup';
+    popup.style.position = 'fixed';
+    popup.style.top = '50%';
+    popup.style.left = '50%';
+    popup.style.transform = 'translate(-50%, -50%) scale(0.98)';
+    popup.style.background = 'rgba(18,28,48,0.98)';
+    popup.style.color = '#fff';
+    popup.style.padding = '20px 22px';
+    popup.style.borderRadius = '12px';
+    popup.style.fontFamily = 'system-ui, Arial, sans-serif';
+    popup.style.fontSize = '1em';
+    popup.style.textAlign = 'center';
+    popup.style.zIndex = 10001;
+    popup.style.boxShadow = '0 8px 40px rgba(0,0,0,0.45)';
+    popup.style.pointerEvents = 'auto';
+    popup.style.minWidth = '260px';
+    popup.style.maxWidth = '92vw';
+    popup.style.opacity = '0';
+    popup.style.transition = 'opacity 0.18s ease, transform 0.18s ease';
+
+    popup.innerHTML = `
+        <div style="font-size:1.05em;font-weight:600;margin-bottom:8px;display:flex;align-items:center;justify-content:center;gap:10px;">
+            <span style="font-size:1.25em;">🔁</span>
+            <span>Restart simulation?</span>
+        </div>
+        <div style="font-size:0.95em;opacity:0.92;margin-bottom:14px;">All progress will be lost.</div>
+        <div style="display:flex;gap:10px;justify-content:center">
+            <button id="restart-confirm-cancel" style="padding:8px 14px;border-radius:8px;border:1px solid rgba(200,200,200,0.08);background:rgba(0,0,0,0.6);color:#d8f2ff;cursor:pointer;">Cancel</button>
+            <button id="restart-confirm-ok" style="padding:8px 14px;border-radius:8px;border:none;background:linear-gradient(90deg,#ff5f6d,#ff9a8b);color:#fff;cursor:pointer;font-weight:600;">Restart</button>
+        </div>
+    `;
+
+    document.body.appendChild(popup);
+    // show
+    requestAnimationFrame(() => {
+        popup.style.opacity = '1';
+        popup.style.transform = 'translate(-50%, -50%) scale(1)';
+    });
+
+    const cleanup = () => {
+        if (popup && popup.parentNode) popup.parentNode.removeChild(popup);
+        if (backdrop && backdrop.parentNode) backdrop.parentNode.removeChild(backdrop);
+        document.removeEventListener('keydown', onKey);
+    };
+
+    const onCancel = (e) => { e && e.preventDefault(); cleanup(); };
+    const onOk = (e) => { e && e.preventDefault(); cleanup(); window.location.reload(); };
+
+    const onKey = (e) => {
+        if (e.key === 'Escape') {
+            onCancel();
+        } else if (e.key === 'Enter') {
+            onOk();
+        }
+    };
+
+    document.getElementById('restart-confirm-cancel').addEventListener('click', onCancel);
+    document.getElementById('restart-confirm-ok').addEventListener('click', onOk);
+    backdrop.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKey);
+
+    // Focus the Cancel button by default to avoid accidental Enter triggering in some browsers
+    const cancelBtn = document.getElementById('restart-confirm-cancel');
+    if (cancelBtn) cancelBtn.focus();
 }
 
 
